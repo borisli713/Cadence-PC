@@ -17,14 +17,15 @@ fn end_to_end_fairness_approvals_reports_and_export_pipeline() {
     let anchor = NaiveDate::from_ymd_opt(2026, 11, 20).unwrap();
     let bundle = build_sample_workspace_bundle("mgr_1", "Alex Manager", anchor);
 
-    // 1. Resolve overlapping conflict shift by lowest-utilization fairness
+    // 1. Resolve overlapping/multi-candidate shifts by lowest-utilization fairness
     let conflict_plan = build_fairness_arrangement_plan(
         &bundle.shifts,
         &bundle.roster,
         &bundle.time_off_requests,
     );
-    assert_eq!(conflict_plan.len(), 1);
+    assert_eq!(conflict_plan.len(), 2);
     assert_eq!(conflict_plan[0].chosen_uid, "sample_maya");
+    assert_eq!(conflict_plan[1].chosen_uid, "sample_elena");
 
     // 2. Accept all pending schedule changes in Rust
     let accept_plan = plan_accept_all_changes(
