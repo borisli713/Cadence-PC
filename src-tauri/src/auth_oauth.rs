@@ -426,6 +426,13 @@ fn handle_http_connection(
     false
 }
 
+#[allow(deprecated)]
+fn open_external_url(app: &tauri::AppHandle, url: &str) -> Result<(), String> {
+    app.shell()
+        .open(url, None)
+        .map_err(|e| format!("Could not open external browser: {e}"))
+}
+
 pub async fn start_external_google_login(
     app: tauri::AppHandle,
     flow_state: &OAuthFlowState,
@@ -491,9 +498,7 @@ pub async fn start_external_google_login(
     }
 
     let auth_url = format!("http://localhost:{}/auth?state={}", port, expected_state);
-    app.shell()
-        .open(&auth_url, None)
-        .map_err(|e| format!("Could not open external browser: {e}"))?;
+    open_external_url(&app, &auth_url)?;
 
     let wait_flag = Arc::clone(&cancel_flag);
     let outcome = tauri::async_runtime::spawn_blocking(move || {

@@ -84,7 +84,7 @@ pub enum SubmissionStatus {
     Withdrawn,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserProfile {
     pub uid: String,
@@ -101,7 +101,7 @@ fn default_true() -> bool {
     true
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StaffDirectoryEntry {
     pub uid: String,
@@ -124,7 +124,7 @@ fn default_weekly_target() -> f64 {
     40.0
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Shift {
     pub id: String,
@@ -154,7 +154,7 @@ fn default_visibility() -> String {
     "team".to_string()
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ScheduleChangeRequest {
     pub id: String,
@@ -185,7 +185,7 @@ pub struct ScheduleChangeRequest {
     pub review_note: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ShiftReport {
     pub id: String,
@@ -209,7 +209,7 @@ pub struct ShiftReport {
     pub verified_by_uid: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PushNotificationRecord {
     pub id: String,
@@ -225,7 +225,7 @@ pub struct PushNotificationRecord {
     pub actor_uid: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ShiftSubmission {
     pub id: String,
@@ -242,7 +242,7 @@ pub struct ShiftSubmission {
     pub status: SubmissionStatus,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TimeOffRequest {
     pub id: String,
@@ -261,7 +261,7 @@ pub struct TimeOffRequest {
     pub review_note: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WeekSlotConfig {
     pub id: String,
@@ -272,14 +272,14 @@ pub struct WeekSlotConfig {
     pub end_time: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TimeOffConflict {
     pub has_time_off: bool,
     pub reason: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FairnessScoreBreakdown {
     pub uid: String,
@@ -296,7 +296,7 @@ pub struct FairnessScoreBreakdown {
     pub time_off_reason: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FairnessArrangementItem {
     pub shift: Shift,
@@ -307,7 +307,7 @@ pub struct FairnessArrangementItem {
     pub reason: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OpenShiftAssignmentItem {
     pub shift: Shift,
@@ -316,7 +316,7 @@ pub struct OpenShiftAssignmentItem {
     pub reason: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GeneratedShiftSpec {
     pub title: String,
@@ -332,7 +332,7 @@ pub struct GeneratedShiftSpec {
     pub fairness_note: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RemoteReleaseInfo {
     pub version_name: String,
@@ -342,7 +342,7 @@ pub struct RemoteReleaseInfo {
     pub windows_asset_name: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateCheckResult {
     pub current_version: String,
@@ -350,7 +350,7 @@ pub struct UpdateCheckResult {
     pub update_available: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExternalOAuthResult {
     pub id_token: String,
@@ -359,7 +359,7 @@ pub struct ExternalOAuthResult {
     pub display_name: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DashboardKpis {
     pub my_shifts_count: usize,
@@ -372,7 +372,7 @@ pub struct DashboardKpis {
     pub open_shifts_count: usize,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StaffChartRow {
     pub uid: String,
@@ -386,7 +386,7 @@ pub struct StaffChartRow {
     pub utilization_percent: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationWorkPayload {
     pub key: String,
@@ -394,7 +394,7 @@ pub struct NotificationWorkPayload {
     pub message: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ValidationOutcome {
     pub valid: bool,
