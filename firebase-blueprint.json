@@ -1,0 +1,752 @@
+{
+  "entities": {
+    "UserPrivate": {
+      "title": "UserPrivate",
+      "description": "Private user account profile containing PII such as email and notification preferences.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "minLength": 3,
+          "maxLength": 200
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "role": {
+          "type": "string",
+          "enum": ["staff", "manager"]
+        },
+        "department": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "weeklyHoursTarget": {
+          "type": "number"
+        },
+        "pushNotificationsEnabled": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "email",
+        "displayName",
+        "role",
+        "department",
+        "weeklyHoursTarget",
+        "pushNotificationsEnabled",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "StaffDirectoryEntry": {
+      "title": "StaffDirectoryEntry",
+      "description": "Non-PII operational staff roster entry tracking cumulative working hours for fairness scheduling.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "role": {
+          "type": "string",
+          "enum": ["staff", "manager"]
+        },
+        "department": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "totalHoursWorked": {
+          "type": "number"
+        },
+        "scheduledHoursThisWeek": {
+          "type": "number"
+        },
+        "weeklyHoursTarget": {
+          "type": "number"
+        },
+        "lastAssignedAt": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "isSampleRoster": {
+          "type": "boolean"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "displayName",
+        "role",
+        "department",
+        "totalHoursWorked",
+        "scheduledHoursThisWeek",
+        "weeklyHoursTarget",
+        "lastAssignedAt",
+        "isSampleRoster",
+        "updatedAt"
+      ]
+    },
+    "ManagerRecord": {
+      "title": "ManagerRecord",
+      "description": "Trusted role lookup record granting manager permissions.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "grantedBy": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "grantedBy", "createdAt"]
+    },
+    "Shift": {
+      "title": "Shift",
+      "description": "Scheduled or open/blank workplace shift with candidate tracking for fairness-based overlap resolution.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "department": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "date": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "startTime": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 5,
+          "pattern": "^\\d{2}:\\d{2}$"
+        },
+        "endTime": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 5,
+          "pattern": "^\\d{2}:\\d{2}$"
+        },
+        "durationHours": {
+          "type": "number"
+        },
+        "assignedUid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^$|^[a-zA-Z0-9_\\-]+$"
+        },
+        "assignedName": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "candidateUids": {
+          "type": "array"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["scheduled", "open", "completed", "conflict", "pending_change"]
+        },
+        "visibility": {
+          "type": "string",
+          "enum": ["team"]
+        },
+        "fairnessNote": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "createdBy": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "department",
+        "date",
+        "startTime",
+        "endTime",
+        "durationHours",
+        "assignedUid",
+        "assignedName",
+        "candidateUids",
+        "status",
+        "visibility",
+        "fairnessNote",
+        "createdBy",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ScheduleChangeRequest": {
+      "title": "ScheduleChangeRequest",
+      "description": "Staff request for a shift time change, swap, drop, or claim awaiting manager approval.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "shiftId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "shiftTitle": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "requesterUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "requesterName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "type": {
+          "type": "string",
+          "enum": ["time_change", "swap", "drop", "claim"]
+        },
+        "currentDate": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "currentStartTime": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 5,
+          "pattern": "^\\d{2}:\\d{2}$"
+        },
+        "currentEndTime": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 5,
+          "pattern": "^\\d{2}:\\d{2}$"
+        },
+        "proposedDate": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "proposedStartTime": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 5,
+          "pattern": "^\\d{2}:\\d{2}$"
+        },
+        "proposedEndTime": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 5,
+          "pattern": "^\\d{2}:\\d{2}$"
+        },
+        "proposedAssigneeUid": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "proposedAssigneeName": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 400
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "approved", "denied"]
+        },
+        "reviewedByUid": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "reviewedByName": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "reviewNote": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "shiftId",
+        "shiftTitle",
+        "requesterUid",
+        "requesterName",
+        "type",
+        "currentDate",
+        "currentStartTime",
+        "currentEndTime",
+        "proposedDate",
+        "proposedStartTime",
+        "proposedEndTime",
+        "proposedAssigneeUid",
+        "proposedAssigneeName",
+        "reason",
+        "status",
+        "reviewedByUid",
+        "reviewedByName",
+        "reviewNote",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ShiftReport": {
+      "title": "ShiftReport",
+      "description": "Completed shift log submitted by staff with actual worked hours and handoff notes.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "shiftId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "shiftTitle": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "staffUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "staffName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "department": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "date": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "actualStartTime": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 5,
+          "pattern": "^\\d{2}:\\d{2}$"
+        },
+        "actualEndTime": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 5,
+          "pattern": "^\\d{2}:\\d{2}$"
+        },
+        "breakMinutes": {
+          "type": "number"
+        },
+        "workedHours": {
+          "type": "number"
+        },
+        "handoffNotes": {
+          "type": "string",
+          "maxLength": 600
+        },
+        "status": {
+          "type": "string",
+          "enum": ["submitted", "verified", "flagged"]
+        },
+        "verifiedByUid": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "shiftId",
+        "shiftTitle",
+        "staffUid",
+        "staffName",
+        "department",
+        "date",
+        "actualStartTime",
+        "actualEndTime",
+        "breakMinutes",
+        "workedHours",
+        "handoffNotes",
+        "status",
+        "verifiedByUid",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "PushNotification": {
+      "title": "PushNotification",
+      "description": "Real-time shift status update notification delivered to staff.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "recipientUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 400
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "shift_approved",
+            "shift_denied",
+            "fairness_rebalanced",
+            "report_verified",
+            "shift_assigned",
+            "time_off_approved",
+            "time_off_denied"
+          ]
+        },
+        "relatedShiftId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "isRead": {
+          "type": "boolean"
+        },
+        "actorUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "recipientUid",
+        "title",
+        "message",
+        "category",
+        "relatedShiftId",
+        "isRead",
+        "actorUid",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ShiftSubmission": {
+      "title": "ShiftSubmission",
+      "description": "Explicit staff shift availability submission used by fairness scheduling so unsubmitted slots remain blank.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "staffUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "staffName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "department": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "date": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "startTime": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 5,
+          "pattern": "^\\d{2}:\\d{2}$"
+        },
+        "endTime": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 5,
+          "pattern": "^\\d{2}:\\d{2}$"
+        },
+        "shiftTitle": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "status": {
+          "type": "string",
+          "enum": ["submitted", "withdrawn"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "staffUid",
+        "staffName",
+        "department",
+        "date",
+        "startTime",
+        "endTime",
+        "shiftTitle",
+        "notes",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "TimeOffRequest": {
+      "title": "TimeOffRequest",
+      "description": "Staff request for dates they cannot work; approved requests exclude staff from auto-scheduling.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "staffUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "staffName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "department": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "startDate": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "endDate": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 400
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "approved", "denied"]
+        },
+        "reviewedByUid": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "reviewedByName": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "reviewNote": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "staffUid",
+        "staffName",
+        "department",
+        "startDate",
+        "endDate",
+        "reason",
+        "status",
+        "reviewedByUid",
+        "reviewedByName",
+        "reviewNote",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserPrivate" },
+      "description": "Private user account documents containing PII."
+    },
+    "/staffDirectory/{userId}": {
+      "schema": { "$ref": "#/entities/StaffDirectoryEntry" },
+      "description": "Non-PII operational staff roster with cumulative hours for fairness scheduling."
+    },
+    "/managers/{userId}": {
+      "schema": { "$ref": "#/entities/ManagerRecord" },
+      "description": "Authoritative lookup documents for manager role privileges."
+    },
+    "/shifts/{shiftId}": {
+      "schema": { "$ref": "#/entities/Shift" },
+      "description": "Scheduled or open/blank workplace shifts and overlap candidate lists."
+    },
+    "/scheduleChanges/{changeId}": {
+      "schema": { "$ref": "#/entities/ScheduleChangeRequest" },
+      "description": "Pending and resolved schedule change requests."
+    },
+    "/shiftReports/{reportId}": {
+      "schema": { "$ref": "#/entities/ShiftReport" },
+      "description": "Staff shift completion and handoff reports."
+    },
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/PushNotification" },
+      "description": "Real-time shift status update notifications for staff."
+    },
+    "/shiftSubmissions/{submissionId}": {
+      "schema": { "$ref": "#/entities/ShiftSubmission" },
+      "description": "Explicit shift submissions by staff for fairness-based scheduling."
+    },
+    "/timeOffRequests/{requestId}": {
+      "schema": { "$ref": "#/entities/TimeOffRequest" },
+      "description": "Staff time off requests with manager approval workflow."
+    }
+  }
+}

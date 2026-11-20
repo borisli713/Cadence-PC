@@ -1,0 +1,10 @@
+node_modules/
+dist/
+coverage/
+src-tauri/target/
+release-assets/
+.DS_Store
+*.log
+*-debug.log
+.env*
+!.env.example

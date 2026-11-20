@@ -1,0 +1,8 @@
+{
+  "name": "Cadence",
+  "description": "Verified shift reporting system with manager schedule change approvals, one-click Accept All, push notifications, and fairness-based overlap arrangement.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

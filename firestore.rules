@@ -1,0 +1,607 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Core Identity & Validation Primitives
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isVerifiedUser() && request.auth.uid == userId;
+    }
+
+    function isBootstrappedAdmin() {
+      return isVerifiedUser() && request.auth.token.email == 'yatheili713@gmail.com';
+    }
+
+    function isManager() {
+      return isBootstrappedAdmin() || (isVerifiedUser() && exists(/databases/$(database)/documents/managers/$(request.auth.uid)));
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidDateStr(d) {
+      return d is string && d.size() == 10 && d.matches('^\\d{4}-\\d{2}-\\d{2}$');
+    }
+
+    function isValidTimeStr(t) {
+      return t is string && t.size() == 5 && t.matches('^\\d{2}:\\d{2}$');
+    }
+
+    // Entity Blueprints
+    function isValidUser(data) {
+      return data.keys().hasAll([
+          'uid', 'email', 'displayName', 'role', 'department',
+          'weeklyHoursTarget', 'pushNotificationsEnabled', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'email', 'displayName', 'role', 'department',
+          'weeklyHoursTarget', 'pushNotificationsEnabled', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.uid)
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 200
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80
+        && data.role in ['staff', 'manager']
+        && data.department is string && data.department.size() >= 1 && data.department.size() <= 60
+        && data.weeklyHoursTarget is number && data.weeklyHoursTarget >= 1 && data.weeklyHoursTarget <= 80
+        && data.pushNotificationsEnabled is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidStaffDirectory(data) {
+      return data.keys().hasAll([
+          'uid', 'displayName', 'role', 'department', 'totalHoursWorked',
+          'scheduledHoursThisWeek', 'weeklyHoursTarget', 'lastAssignedAt',
+          'isSampleRoster', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'displayName', 'role', 'department', 'totalHoursWorked',
+          'scheduledHoursThisWeek', 'weeklyHoursTarget', 'lastAssignedAt',
+          'isSampleRoster', 'updatedAt'
+        ])
+        && isValidId(data.uid)
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80
+        && data.role in ['staff', 'manager']
+        && data.department is string && data.department.size() >= 1 && data.department.size() <= 60
+        && data.totalHoursWorked is number && data.totalHoursWorked >= 0 && data.totalHoursWorked <= 10000
+        && data.scheduledHoursThisWeek is number && data.scheduledHoursThisWeek >= 0 && data.scheduledHoursThisWeek <= 168
+        && data.weeklyHoursTarget is number && data.weeklyHoursTarget >= 1 && data.weeklyHoursTarget <= 80
+        && data.lastAssignedAt is string && data.lastAssignedAt.size() <= 40
+        && data.isSampleRoster is bool
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidManagerRecord(data) {
+      return data.keys().hasAll(['uid', 'grantedBy', 'createdAt'])
+        && data.keys().hasOnly(['uid', 'grantedBy', 'createdAt'])
+        && isValidId(data.uid)
+        && isValidId(data.grantedBy)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidShift(data) {
+      return data.keys().hasAll([
+          'id', 'title', 'department', 'date', 'startTime', 'endTime',
+          'durationHours', 'assignedUid', 'assignedName', 'candidateUids',
+          'status', 'visibility', 'fairnessNote', 'createdBy', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'title', 'department', 'date', 'startTime', 'endTime',
+          'durationHours', 'assignedUid', 'assignedName', 'candidateUids',
+          'status', 'visibility', 'fairnessNote', 'createdBy', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 120
+        && data.department is string && data.department.size() >= 1 && data.department.size() <= 60
+        && isValidDateStr(data.date)
+        && isValidTimeStr(data.startTime)
+        && isValidTimeStr(data.endTime)
+        && data.durationHours is number && data.durationHours >= 0.25 && data.durationHours <= 24
+        && data.assignedUid is string && data.assignedUid.size() <= 128
+        && data.assignedName is string && data.assignedName.size() <= 80
+        && data.candidateUids is list && data.candidateUids.size() <= 20
+        && (data.candidateUids.size() == 0 || (data.candidateUids[0] is string && isValidId(data.candidateUids[0])))
+        && data.status in ['scheduled', 'open', 'completed', 'conflict', 'pending_change']
+        && (
+          (data.status == 'open' && data.assignedUid == '' && data.assignedName == '')
+          || (data.status != 'open' && isValidId(data.assignedUid) && data.assignedName.size() >= 1)
+        )
+        && data.visibility == 'team'
+        && data.fairnessNote is string && data.fairnessNote.size() <= 300
+        && isValidId(data.createdBy)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidScheduleChange(data) {
+      return data.keys().hasAll([
+          'id', 'shiftId', 'shiftTitle', 'requesterUid', 'requesterName', 'type',
+          'currentDate', 'currentStartTime', 'currentEndTime',
+          'proposedDate', 'proposedStartTime', 'proposedEndTime',
+          'proposedAssigneeUid', 'proposedAssigneeName', 'reason',
+          'status', 'reviewedByUid', 'reviewedByName', 'reviewNote',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'shiftId', 'shiftTitle', 'requesterUid', 'requesterName', 'type',
+          'currentDate', 'currentStartTime', 'currentEndTime',
+          'proposedDate', 'proposedStartTime', 'proposedEndTime',
+          'proposedAssigneeUid', 'proposedAssigneeName', 'reason',
+          'status', 'reviewedByUid', 'reviewedByName', 'reviewNote',
+          'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && isValidId(data.shiftId)
+        && data.shiftTitle is string && data.shiftTitle.size() >= 1 && data.shiftTitle.size() <= 120
+        && isValidId(data.requesterUid)
+        && data.requesterName is string && data.requesterName.size() >= 1 && data.requesterName.size() <= 80
+        && data.type in ['time_change', 'swap', 'drop', 'claim']
+        && isValidDateStr(data.currentDate)
+        && isValidTimeStr(data.currentStartTime)
+        && isValidTimeStr(data.currentEndTime)
+        && isValidDateStr(data.proposedDate)
+        && isValidTimeStr(data.proposedStartTime)
+        && isValidTimeStr(data.proposedEndTime)
+        && data.proposedAssigneeUid is string && data.proposedAssigneeUid.size() <= 128
+        && data.proposedAssigneeName is string && data.proposedAssigneeName.size() <= 80
+        && data.reason is string && data.reason.size() >= 1 && data.reason.size() <= 400
+        && data.status in ['pending', 'approved', 'denied']
+        && data.reviewedByUid is string && data.reviewedByUid.size() <= 128
+        && data.reviewedByName is string && data.reviewedByName.size() <= 80
+        && data.reviewNote is string && data.reviewNote.size() <= 300
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidShiftReport(data) {
+      return data.keys().hasAll([
+          'id', 'shiftId', 'shiftTitle', 'staffUid', 'staffName', 'department',
+          'date', 'actualStartTime', 'actualEndTime', 'breakMinutes',
+          'workedHours', 'handoffNotes', 'status', 'verifiedByUid',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'shiftId', 'shiftTitle', 'staffUid', 'staffName', 'department',
+          'date', 'actualStartTime', 'actualEndTime', 'breakMinutes',
+          'workedHours', 'handoffNotes', 'status', 'verifiedByUid',
+          'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && data.shiftId is string && data.shiftId.size() <= 128
+        && data.shiftTitle is string && data.shiftTitle.size() >= 1 && data.shiftTitle.size() <= 120
+        && isValidId(data.staffUid)
+        && data.staffName is string && data.staffName.size() >= 1 && data.staffName.size() <= 80
+        && data.department is string && data.department.size() >= 1 && data.department.size() <= 60
+        && isValidDateStr(data.date)
+        && isValidTimeStr(data.actualStartTime)
+        && isValidTimeStr(data.actualEndTime)
+        && data.breakMinutes is number && data.breakMinutes >= 0 && data.breakMinutes <= 180
+        && data.workedHours is number && data.workedHours >= 0.25 && data.workedHours <= 24
+        && data.handoffNotes is string && data.handoffNotes.size() <= 600
+        && data.status in ['submitted', 'verified', 'flagged']
+        && data.verifiedByUid is string && data.verifiedByUid.size() <= 128
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidNotification(data) {
+      return data.keys().hasAll([
+          'id', 'recipientUid', 'title', 'message', 'category',
+          'relatedShiftId', 'isRead', 'actorUid', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'recipientUid', 'title', 'message', 'category',
+          'relatedShiftId', 'isRead', 'actorUid', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && isValidId(data.recipientUid)
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 120
+        && data.message is string && data.message.size() >= 1 && data.message.size() <= 400
+        && data.category in [
+          'shift_approved', 'shift_denied', 'fairness_rebalanced',
+          'report_verified', 'shift_assigned', 'time_off_approved', 'time_off_denied'
+        ]
+        && data.relatedShiftId is string && data.relatedShiftId.size() <= 128
+        && data.isRead is bool
+        && isValidId(data.actorUid)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidShiftSubmission(data) {
+      return data.keys().hasAll([
+          'id', 'staffUid', 'staffName', 'department', 'date',
+          'startTime', 'endTime', 'shiftTitle', 'notes', 'status',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'staffUid', 'staffName', 'department', 'date',
+          'startTime', 'endTime', 'shiftTitle', 'notes', 'status',
+          'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && isValidId(data.staffUid)
+        && data.staffName is string && data.staffName.size() >= 1 && data.staffName.size() <= 80
+        && data.department is string && data.department.size() >= 1 && data.department.size() <= 60
+        && isValidDateStr(data.date)
+        && isValidTimeStr(data.startTime)
+        && isValidTimeStr(data.endTime)
+        && data.shiftTitle is string && data.shiftTitle.size() <= 120
+        && data.notes is string && data.notes.size() <= 300
+        && data.status in ['submitted', 'withdrawn']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidTimeOffRequest(data) {
+      return data.keys().hasAll([
+          'id', 'staffUid', 'staffName', 'department', 'startDate',
+          'endDate', 'reason', 'status', 'reviewedByUid', 'reviewedByName',
+          'reviewNote', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'staffUid', 'staffName', 'department', 'startDate',
+          'endDate', 'reason', 'status', 'reviewedByUid', 'reviewedByName',
+          'reviewNote', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && isValidId(data.staffUid)
+        && data.staffName is string && data.staffName.size() >= 1 && data.staffName.size() <= 80
+        && data.department is string && data.department.size() >= 1 && data.department.size() <= 60
+        && isValidDateStr(data.startDate)
+        && isValidDateStr(data.endDate)
+        && data.endDate >= data.startDate
+        && data.reason is string && data.reason.size() >= 1 && data.reason.size() <= 400
+        && data.status in ['pending', 'approved', 'denied']
+        && data.reviewedByUid is string && data.reviewedByUid.size() <= 128
+        && data.reviewedByName is string && data.reviewedByName.size() <= 80
+        && data.reviewNote is string && data.reviewNote.size() <= 300
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // 1. Private User PII Collection
+    match /users/{userId} {
+      allow get: if isVerifiedUser() && isValidId(userId) && (isOwner(userId) || isManager());
+      allow list: if isVerifiedUser() && (isManager() || resource.data.uid == request.auth.uid);
+      allow create: if isVerifiedUser() && isValidId(userId) && isOwner(userId)
+        && isValidUser(incoming())
+        && incoming().uid == request.auth.uid
+        && incoming().createdAt is timestamp && incoming().createdAt <= request.time
+        && incoming().updatedAt is timestamp && incoming().updatedAt <= request.time
+        && (incoming().role == 'staff' || isBootstrappedAdmin());
+      allow update: if isVerifiedUser() && isValidId(userId)
+        && isValidUser(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt is timestamp && incoming().updatedAt <= request.time
+        && (
+          (isManager() && incoming().diff(existing()).affectedKeys().hasOnly([
+            'role', 'department', 'weeklyHoursTarget', 'displayName', 'pushNotificationsEnabled', 'updatedAt'
+          ]))
+          ||
+          (isOwner(userId) && incoming().role == existing().role && incoming().diff(existing()).affectedKeys().hasOnly([
+            'displayName', 'department', 'weeklyHoursTarget', 'pushNotificationsEnabled', 'updatedAt'
+          ]))
+        );
+      allow delete: if isVerifiedUser() && isValidId(userId) && isManager();
+    }
+
+    // 2. Non-PII Operational Staff Directory
+    match /staffDirectory/{userId} {
+      allow get: if isVerifiedUser() && isValidId(userId);
+      allow list: if isVerifiedUser() && resource.data.role in ['staff', 'manager'];
+      allow create: if isVerifiedUser() && isValidId(userId)
+        && isValidStaffDirectory(incoming())
+        && incoming().updatedAt is timestamp && incoming().updatedAt <= request.time
+        && (
+          isManager()
+          || (isOwner(userId)
+            && incoming().uid == request.auth.uid
+            && incoming().totalHoursWorked == 0
+            && incoming().scheduledHoursThisWeek == 0
+            && incoming().isSampleRoster == false
+            && (incoming().role == 'staff' || isBootstrappedAdmin()))
+        );
+      allow update: if isVerifiedUser() && isValidId(userId)
+        && isValidStaffDirectory(incoming())
+        && incoming().uid == existing().uid
+        && incoming().updatedAt is timestamp && incoming().updatedAt <= request.time
+        && (
+          (isManager() && incoming().diff(existing()).affectedKeys().hasOnly([
+            'displayName', 'role', 'department', 'totalHoursWorked',
+            'scheduledHoursThisWeek', 'weeklyHoursTarget', 'lastAssignedAt',
+            'isSampleRoster', 'updatedAt'
+          ]))
+          ||
+          (isOwner(userId) && incoming().role == existing().role && incoming().diff(existing()).affectedKeys().hasOnly([
+            'displayName', 'department', 'weeklyHoursTarget', 'updatedAt'
+          ]))
+        );
+      allow delete: if isVerifiedUser() && isValidId(userId) && isManager();
+    }
+
+    // 3. Authoritative Manager Role Records
+    match /managers/{userId} {
+      allow get: if isVerifiedUser() && isValidId(userId) && (isOwner(userId) || isManager());
+      allow list: if isVerifiedUser() && isManager();
+      allow create: if isVerifiedUser() && isValidId(userId) && isManager()
+        && isValidManagerRecord(incoming())
+        && incoming().uid == userId
+        && incoming().grantedBy == request.auth.uid
+        && incoming().createdAt is timestamp && incoming().createdAt <= request.time;
+      allow update: if false;
+      allow delete: if isVerifiedUser() && isValidId(userId) && isManager();
+    }
+
+    function isAuthorizedScheduleChangeForShift(changeData, shiftData) {
+      return isManager()
+        || (
+          changeData.requesterUid == request.auth.uid
+          && changeData.currentDate == shiftData.date
+          && changeData.currentStartTime == shiftData.startTime
+          && changeData.currentEndTime == shiftData.endTime
+          && (
+            (changeData.type == 'claim'
+              && shiftData.status == 'open'
+              && shiftData.assignedUid == ''
+              && (changeData.proposedAssigneeUid == '' || changeData.proposedAssigneeUid == request.auth.uid))
+            ||
+            (changeData.type in ['time_change', 'swap', 'drop']
+              && shiftData.assignedUid == request.auth.uid
+              && (changeData.type != 'drop' || changeData.proposedAssigneeUid == '')
+              && (changeData.type != 'time_change'
+                || changeData.proposedAssigneeUid == ''
+                || changeData.proposedAssigneeUid == request.auth.uid)
+              && (changeData.type != 'swap' || isValidId(changeData.proposedAssigneeUid)))
+          )
+        );
+    }
+
+    // 4. Shifts & Overlap Assignments
+    match /shifts/{shiftId} {
+      allow get: if isVerifiedUser() && isValidId(shiftId)
+        && (isManager() || existing().assignedUid == request.auth.uid || existing().visibility == 'team');
+      allow list: if isVerifiedUser()
+        && (isManager() || resource.data.assignedUid == request.auth.uid || resource.data.visibility == 'team');
+      allow create: if isVerifiedUser() && isValidId(shiftId)
+        && isManager()
+        && isValidShift(incoming())
+        && incoming().id == shiftId
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt is timestamp && incoming().createdAt <= request.time
+        && incoming().updatedAt is timestamp && incoming().updatedAt <= request.time;
+      allow update: if isVerifiedUser() && isValidId(shiftId)
+        && isValidShift(incoming())
+        && incoming().id == existing().id
+        && incoming().createdBy == existing().createdBy
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt is timestamp && incoming().updatedAt <= request.time
+        && (
+          (isManager() && incoming().diff(existing()).affectedKeys().hasOnly([
+            'title', 'department', 'date', 'startTime', 'endTime',
+            'durationHours', 'assignedUid', 'assignedName', 'candidateUids',
+            'status', 'fairnessNote', 'updatedAt'
+          ]))
+          ||
+          (existing().assignedUid == request.auth.uid
+            && existing().status in ['scheduled', 'conflict', 'pending_change']
+            && incoming().status == 'pending_change'
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'status', 'updatedAt'
+            ]))
+        );
+      allow delete: if isVerifiedUser() && isValidId(shiftId) && isManager();
+    }
+
+    // 5. Schedule Change Requests (Approval Workflow)
+    match /scheduleChanges/{changeId} {
+      allow get: if isVerifiedUser() && isValidId(changeId)
+        && (isManager() || existing().requesterUid == request.auth.uid || existing().proposedAssigneeUid == request.auth.uid);
+      allow list: if isVerifiedUser()
+        && (isManager() || resource.data.requesterUid == request.auth.uid || resource.data.proposedAssigneeUid == request.auth.uid);
+      allow create: if isVerifiedUser() && isValidId(changeId)
+        && isValidScheduleChange(incoming())
+        && incoming().id == changeId
+        && (incoming().requesterUid == request.auth.uid || isManager())
+        && incoming().status == 'pending'
+        && incoming().reviewedByUid == ''
+        && incoming().createdAt is timestamp && incoming().createdAt <= request.time
+        && incoming().updatedAt is timestamp && incoming().updatedAt <= request.time
+        && exists(/databases/$(database)/documents/shifts/$(incoming().shiftId))
+        && isAuthorizedScheduleChangeForShift(
+          incoming(),
+          get(/databases/$(database)/documents/shifts/$(incoming().shiftId)).data
+        );
+      allow update: if isVerifiedUser() && isValidId(changeId)
+        && isValidScheduleChange(incoming())
+        && incoming().id == existing().id
+        && incoming().requesterUid == existing().requesterUid
+        && incoming().shiftId == existing().shiftId
+        && incoming().type == existing().type
+        && incoming().currentDate == existing().currentDate
+        && incoming().currentStartTime == existing().currentStartTime
+        && incoming().currentEndTime == existing().currentEndTime
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt is timestamp && incoming().updatedAt <= request.time
+        && (
+          (isManager()
+            && existing().status == 'pending'
+            && incoming().status in ['approved', 'denied']
+            && incoming().reviewedByUid == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'status', 'reviewedByUid', 'reviewedByName', 'reviewNote', 'updatedAt'
+            ]))
+          ||
+          (existing().requesterUid == request.auth.uid
+            && existing().status == 'pending'
+            && incoming().status == 'pending'
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'proposedDate', 'proposedStartTime', 'proposedEndTime', 'reason', 'updatedAt'
+            ]))
+        );
+      allow delete: if isVerifiedUser() && isValidId(changeId)
+        && (isManager() || (existing().requesterUid == request.auth.uid && existing().status == 'pending'));
+    }
+
+    // 6. Staff Shift Reports
+    match /shiftReports/{reportId} {
+      allow get: if isVerifiedUser() && isValidId(reportId)
+        && (isManager() || existing().staffUid == request.auth.uid);
+      allow list: if isVerifiedUser()
+        && (isManager() || resource.data.staffUid == request.auth.uid);
+      allow create: if isVerifiedUser() && isValidId(reportId)
+        && isValidShiftReport(incoming())
+        && incoming().id == reportId
+        && incoming().staffUid == request.auth.uid
+        && incoming().status == 'submitted'
+        && incoming().verifiedByUid == ''
+        && incoming().createdAt is timestamp && incoming().createdAt <= request.time
+        && incoming().updatedAt is timestamp && incoming().updatedAt <= request.time;
+      allow update: if isVerifiedUser() && isValidId(reportId)
+        && isValidShiftReport(incoming())
+        && incoming().id == existing().id
+        && incoming().staffUid == existing().staffUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt is timestamp && incoming().updatedAt <= request.time
+        && (
+          (isManager()
+            && incoming().status in ['verified', 'flagged']
+            && incoming().verifiedByUid == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'status', 'verifiedByUid', 'updatedAt'
+            ]))
+          ||
+          (existing().staffUid == request.auth.uid
+            && existing().status == 'submitted'
+            && incoming().status == 'submitted'
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'actualStartTime', 'actualEndTime', 'breakMinutes', 'workedHours', 'handoffNotes', 'updatedAt'
+            ]))
+        );
+      allow delete: if isVerifiedUser() && isValidId(reportId) && isManager();
+    }
+
+    // 7. Shift Status Update Push Notifications
+    match /notifications/{notificationId} {
+      allow get: if isVerifiedUser() && isValidId(notificationId)
+        && (isManager() || existing().recipientUid == request.auth.uid);
+      allow list: if isVerifiedUser()
+        && (isManager() || resource.data.recipientUid == request.auth.uid);
+      allow create: if isVerifiedUser() && isValidId(notificationId)
+        && isValidNotification(incoming())
+        && incoming().id == notificationId
+        && incoming().actorUid == request.auth.uid
+        && incoming().isRead == false
+        && incoming().createdAt is timestamp && incoming().createdAt <= request.time
+        && incoming().updatedAt is timestamp && incoming().updatedAt <= request.time
+        && (isManager() || incoming().recipientUid == request.auth.uid);
+      allow update: if isVerifiedUser() && isValidId(notificationId)
+        && isValidNotification(incoming())
+        && incoming().id == existing().id
+        && incoming().recipientUid == existing().recipientUid
+        && incoming().actorUid == existing().actorUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt is timestamp && incoming().updatedAt <= request.time
+        && (
+          (isManager() && incoming().diff(existing()).affectedKeys().hasOnly([
+            'isRead', 'updatedAt'
+          ]))
+          ||
+          (existing().recipientUid == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly([
+            'isRead', 'updatedAt'
+          ]))
+        );
+      allow delete: if isVerifiedUser() && isValidId(notificationId)
+        && (isManager() || existing().recipientUid == request.auth.uid);
+    }
+
+    // 8. Staff Shift Availability Submissions
+    match /shiftSubmissions/{submissionId} {
+      allow get: if isVerifiedUser() && isValidId(submissionId)
+        && (isManager() || existing().staffUid == request.auth.uid);
+      allow list: if isVerifiedUser()
+        && (isManager() || resource.data.staffUid == request.auth.uid);
+      allow create: if isVerifiedUser() && isValidId(submissionId)
+        && isValidShiftSubmission(incoming())
+        && incoming().id == submissionId
+        && (incoming().staffUid == request.auth.uid || isManager())
+        && incoming().status == 'submitted'
+        && incoming().createdAt is timestamp && incoming().createdAt <= request.time
+        && incoming().updatedAt is timestamp && incoming().updatedAt <= request.time;
+      allow update: if isVerifiedUser() && isValidId(submissionId)
+        && isValidShiftSubmission(incoming())
+        && incoming().id == existing().id
+        && incoming().staffUid == existing().staffUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt is timestamp && incoming().updatedAt <= request.time
+        && (isManager() || existing().staffUid == request.auth.uid)
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'department', 'date', 'startTime', 'endTime', 'shiftTitle', 'notes', 'status', 'updatedAt'
+        ]);
+      allow delete: if isVerifiedUser() && isValidId(submissionId)
+        && (isManager() || existing().staffUid == request.auth.uid);
+    }
+
+    // 9. Staff Time Off Requests
+    match /timeOffRequests/{requestId} {
+      allow get: if isVerifiedUser() && isValidId(requestId)
+        && (isManager() || existing().staffUid == request.auth.uid);
+      allow list: if isVerifiedUser()
+        && (isManager() || resource.data.staffUid == request.auth.uid);
+      allow create: if isVerifiedUser() && isValidId(requestId)
+        && isValidTimeOffRequest(incoming())
+        && incoming().id == requestId
+        && (incoming().staffUid == request.auth.uid || isManager())
+        && incoming().status == 'pending'
+        && incoming().reviewedByUid == ''
+        && incoming().createdAt is timestamp && incoming().createdAt <= request.time
+        && incoming().updatedAt is timestamp && incoming().updatedAt <= request.time;
+      allow update: if isVerifiedUser() && isValidId(requestId)
+        && isValidTimeOffRequest(incoming())
+        && incoming().id == existing().id
+        && incoming().staffUid == existing().staffUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt is timestamp && incoming().updatedAt <= request.time
+        && (
+          (isManager()
+            && existing().status == 'pending'
+            && incoming().status in ['approved', 'denied']
+            && incoming().reviewedByUid == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'status', 'reviewedByUid', 'reviewedByName', 'reviewNote', 'updatedAt'
+            ]))
+          ||
+          (existing().staffUid == request.auth.uid
+            && existing().status == 'pending'
+            && incoming().status == 'pending'
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'startDate', 'endDate', 'reason', 'updatedAt'
+            ]))
+        );
+      allow delete: if isVerifiedUser() && isValidId(requestId)
+        && (isManager() || (existing().staffUid == request.auth.uid && existing().status == 'pending'));
+    }
+  }
+}
