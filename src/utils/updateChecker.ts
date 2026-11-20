@@ -5,10 +5,16 @@ import {
   isTauriDesktop,
 } from './tauriBridge';
 
-export const GITHUB_RELEASES_API_URL =
-  'https://api.github.com/repos/borisli713/Cadence-Mobile/releases?per_page=30';
-export const GITHUB_RELEASES_PAGE_URL =
-  'https://github.com/borisli713/Cadence-Mobile/releases';
+const ENV_GITHUB_REPO = (
+  import.meta as ImportMeta & {
+    env?: Record<string, string | undefined>;
+  }
+).env?.VITE_GITHUB_REPO;
+
+const GITHUB_REPO = ENV_GITHUB_REPO?.trim() || 'borisli713/Cadence-PC';
+
+export const GITHUB_RELEASES_API_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=30`;
+export const GITHUB_RELEASES_PAGE_URL = `https://github.com/${GITHUB_REPO}/releases`;
 
 interface RawGitHubRelease {
   tag_name?: string;
@@ -103,10 +109,10 @@ export async function checkForGitHubUpdate(): Promise<UpdateCheckResult | null> 
     const versionName =
       normalizeTagVersion(json.tag_name ?? json.name ?? '') || currentVersion;
     const assets = Array.isArray(json.assets) ? json.assets : [];
-    const winAsset = assets.find((a) => {
-      const n = (a.name ?? '').toLowerCase();
-      return n.endsWith('.exe') || n.endsWith('.msi');
-    });
+    const winAsset =
+      assets.find((a) => (a.name ?? '').toLowerCase().endsWith('-setup.exe')) ??
+      assets.find((a) => (a.name ?? '').toLowerCase().endsWith('.msi')) ??
+      assets.find((a) => (a.name ?? '').toLowerCase().endsWith('.exe'));
 
     const latest: RemoteReleaseInfo = {
       versionName,

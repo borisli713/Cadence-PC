@@ -136,9 +136,15 @@ jobs:
           npm run build
 
       - name: Run Rust unit tests (Fairness Engine & ICS exporter)
+        env:
+          CADENCE_GITHUB_REPO: ${{ github.repository }}
+          VITE_GITHUB_REPO: ${{ github.repository }}
         run: cargo test --manifest-path src-tauri/Cargo.toml
 
       - name: Build Windows Tauri application & installers
+        env:
+          CADENCE_GITHUB_REPO: ${{ github.repository }}
+          VITE_GITHUB_REPO: ${{ github.repository }}
         run: npx tauri build
 
       - name: Collect Windows release assets
@@ -198,6 +204,7 @@ jobs:
               )
               with urllib.request.urlopen(req, timeout=20) as resp:
                   releases = json.loads(resp.read().decode("utf-8"))
+              win_tags = []
               for rel in releases:
                   tag = (rel.get("tag_name") or "").strip()
                   assets = rel.get("assets") or []
@@ -205,9 +212,11 @@ jobs:
                       (a.get("name") or "").lower().endswith((".exe", ".msi"))
                       for a in assets
                   )
-                  if has_win and tag and tag != current_tag:
-                      prev_win_tag = tag
-                      break
+                  m = re.match(r"^(?:windows-v?|win-v?|v)?(\d+)\.(\d+)\.(\d+)$", tag, re.IGNORECASE)
+                  if has_win and m and tag != current_tag:
+                      win_tags.append((tuple(int(x) for x in m.groups()), tag))
+              if win_tags:
+                  prev_win_tag = max(win_tags, key=lambda item: item[0])[1]
           except Exception:
               prev_win_tag = ""
 

@@ -2,10 +2,22 @@ use serde::Deserialize;
 
 use crate::models::{RemoteReleaseInfo, UpdateCheckResult};
 
-pub const GITHUB_RELEASES_LIST_API_URL: &str =
-    "https://api.github.com/repos/borisli713/Cadence-Mobile/releases?per_page=30";
-pub const GITHUB_RELEASES_PAGE_URL: &str =
-    "https://github.com/borisli713/Cadence-Mobile/releases";
+pub const DEFAULT_GITHUB_REPO: &str = "borisli713/Cadence-PC";
+
+pub fn github_repo_slug() -> &'static str {
+    option_env!("CADENCE_GITHUB_REPO").unwrap_or(DEFAULT_GITHUB_REPO)
+}
+
+pub fn github_releases_api_url() -> String {
+    format!(
+        "https://api.github.com/repos/{}/releases?per_page=30",
+        github_repo_slug()
+    )
+}
+
+pub fn github_releases_page_url() -> String {
+    format!("https://github.com/{}/releases", github_repo_slug())
+}
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct GitHubReleaseAsset {
@@ -108,6 +120,23 @@ pub fn select_latest_windows_release(releases: &[GitHubReleaseEntry]) -> Option<
         .cloned()
 }
 
+pub fn pick_preferred_windows_asset(assets: &[GitHubReleaseAsset]) -> Option<&GitHubReleaseAsset> {
+    assets
+        .iter()
+        .find(|a| a.name.to_ascii_lowercase().ends_with("-setup.exe"))
+        .or_else(|| {
+            assets
+                .iter()
+                .find(|a| a.name.to_ascii_lowercase().ends_with(".msi"))
+        })
+        .or_else(|| {
+            assets.iter().find(|a| {
+                let lower = a.name.to_ascii_lowercase();
+                lower.ends_with(".exe") || lower.contains("windows")
+            })
+        })
+}
+
 pub fn clean_release_notes(raw: &str) -> String {
     if raw.trim().is_empty() {
         return String::new();
@@ -145,13 +174,16 @@ pub fn clean_release_notes(raw: &str) -> String {
 
 pub async fn check_for_github_update(current_version: &str) -> Result<UpdateCheckResult, String> {
     let norm_current = normalize_version_name(current_version);
+    let releases_api_url = github_releases_api_url();
+    let releases_page_url = github_releases_page_url();
+
     let client = reqwest::Client::builder()
         .user_agent("Cadence-Windows-Desktop")
         .build()
         .map_err(|e| format!("Failed to initialize HTTP client: {e}"))?;
 
     let resp = client
-        .get(GITHUB_RELEASES_LIST_API_URL)
+        .get(&releases_api_url)
         .header("Accept", "application/vnd.github+json")
         .send()
         .await
@@ -172,7 +204,7 @@ pub async fn check_for_github_update(current_version: &str) -> Result<UpdateChec
             latest: RemoteReleaseInfo {
                 version_name: norm_current,
                 release_notes: "No newer Windows desktop release published yet.".to_string(),
-                download_page_url: GITHUB_RELEASES_PAGE_URL.to_string(),
+                download_page_url: releases_page_url,
                 windows_asset_url: None,
                 windows_asset_name: None,
             },
@@ -185,15 +217,12 @@ pub async fn check_for_github_update(current_version: &str) -> Result<UpdateChec
         return Err("Windows release tag did not contain a semantic version.".to_string());
     }
 
-    let win_asset = release.assets.iter().find(|a| {
-        let lower = a.name.to_ascii_lowercase();
-        lower.ends_with(".exe") || lower.ends_with(".msi") || lower.contains("windows")
-    });
+    let win_asset = pick_preferred_windows_asset(&release.assets);
 
     let download_page_url = release
         .html_url
         .filter(|u| !u.trim().is_empty())
-        .unwrap_or_else(|| GITHUB_RELEASES_PAGE_URL.to_string());
+        .unwrap_or(releases_page_url);
 
     let latest = RemoteReleaseInfo {
         version_name: clean_ver.clone(),
@@ -258,5 +287,20 @@ mod tests {
 
         let only_android = vec![mk_release("v1.1.9", &["Cadence-Mobile.apk"])];
         assert!(select_latest_windows_release(&only_android).is_none());
+    }
+
+    #[test]
+    fn prefers_setup_installer_and_uses_windows_repo() {
+        let rel = mk_release(
+            "windows-v1.0.2",
+            &[
+                "Cadence-windows-v1.0.2-windows-x64-portable.exe",
+                "Cadence-windows-v1.0.2-windows-x64-setup.exe",
+                "Cadence-windows-v1.0.2-windows-x64.msi",
+            ],
+        );
+        let picked = pick_preferred_windows_asset(&rel.assets).unwrap();
+        assert_eq!(picked.name, "Cadence-windows-v1.0.2-windows-x64-setup.exe");
+        assert!(github_releases_api_url().contains("/releases?per_page=30"));
     }
 }
