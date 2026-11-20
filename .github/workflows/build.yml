@@ -260,4 +260,6 @@ jobs:
           name: Cadence Windows v${{ steps.version.outputs.version }}
           body_path: release_notes.md
           files: release-assets/*
-          make_latest: false
+          draft: false
+          prerelease: false
+          make_latest: true
