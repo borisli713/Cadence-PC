@@ -22,7 +22,3 @@ Cadence is a **Windows desktop application** built with **Rust** (**Tauri v2**, 
 - **Desktop Core (Rust)**: Tauri v2 (`src-tauri/src/` — `fairness.rs`, `ics.rs`, `updater.rs`, `models.rs`, `lib.rs`)
 - **Frontend UI**: React 19, TypeScript, Tailwind CSS v4, Lucide Icons
 - **Backend & Security Rules**: Cloud Firestore with `firestore.rules` & Firebase Authentication
-
-## Automated Windows Releases (`1.0.0` + `0.0.1` per update)
-
-The GitHub Actions workflow builds and tests both the TypeScript/React frontend and Rust Fairness Engine (`cargo test`), packages Windows NSIS (`.exe`), MSI (`.msi`), and portable `.exe` artifacts via Tauri on `windows-latest`, and publishes them to the repository's **GitHub Releases** page starting at `v1.0.0` and incrementing by `+0.0.1` for each update.
