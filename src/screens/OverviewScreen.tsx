@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import {
   AlertTriangle,
   ArrowRight,
@@ -13,10 +14,12 @@ import { formatHours } from '../domain/fairnessEngine';
 import {
   ApprovalStatus,
   CadenceTab,
+  DashboardKpis,
   ShiftStatus,
   UserRole,
   WorkspaceUiData,
 } from '../types/cadence';
+import { invokeComputeDashboardKpis } from '../utils/tauriBridge';
 import {
   ApprovalStatusChip,
   EmptyStatePanel,
@@ -41,6 +44,7 @@ export function OverviewScreen({
 }: OverviewScreenProps) {
   const { profile, shifts, scheduleChanges, shiftReports, timeOffRequests } = data;
   const isManager = profile.role === UserRole.MANAGER;
+  const [rustKpis, setRustKpis] = useState<DashboardKpis | null>(null);
 
   const myShifts = shifts.filter(
     (s) => s.assignedUid === profile.uid && s.status !== ShiftStatus.OPEN,
@@ -49,20 +53,52 @@ export function OverviewScreen({
     .filter((s) => s.status !== ShiftStatus.COMPLETED)
     .slice(0, 4);
 
-  const pendingApprovalsCount = scheduleChanges.filter(
+  const fallbackPendingApprovals = scheduleChanges.filter(
     (c) => c.status === ApprovalStatus.PENDING,
   ).length;
-  const pendingTimeOffCount = timeOffRequests.filter(
+  const fallbackPendingTimeOff = timeOffRequests.filter(
     (t) => t.status === ApprovalStatus.PENDING,
   ).length;
-  const conflictShiftsCount = shifts.filter(
+  const fallbackConflictShifts = shifts.filter(
     (s) => s.status === ShiftStatus.CONFLICT || s.candidateUids.length > 1,
   ).length;
+
+  useEffect(() => {
+    let cancelled = false;
+    void invokeComputeDashboardKpis(
+      profile.uid,
+      profile.weeklyHoursTarget,
+      shifts,
+      fallbackPendingApprovals,
+      timeOffRequests,
+      data.staffDirectory,
+    ).then((res) => {
+      if (!cancelled && res) setRustKpis(res);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    profile.uid,
+    profile.weeklyHoursTarget,
+    shifts,
+    fallbackPendingApprovals,
+    timeOffRequests,
+    data.staffDirectory,
+  ]);
 
   const currentStaffEntry = data.staffDirectory.find(
     (s) => s.uid === profile.uid,
   );
-  const totalLoggedHours = currentStaffEntry?.totalHoursWorked ?? 0;
+  const myShiftsCount = rustKpis?.myShiftsCount ?? myShifts.length;
+  const pendingApprovalsCount =
+    rustKpis?.pendingApprovalsCount ?? fallbackPendingApprovals;
+  const pendingTimeOffCount =
+    rustKpis?.pendingTimeOffCount ?? fallbackPendingTimeOff;
+  const conflictShiftsCount =
+    rustKpis?.conflictShiftsCount ?? fallbackConflictShifts;
+  const totalLoggedHours =
+    rustKpis?.myVerifiedHours ?? currentStaffEntry?.totalHoursWorked ?? 0;
 
   return (
     <div className="space-y-6">
@@ -156,7 +192,7 @@ export function OverviewScreen({
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <KpiTile
           label="My Shifts"
-          value={myShifts.length}
+          value={myShiftsCount}
           subtext={`${myUpcomingShifts.length} upcoming active`}
           accentClass="text-blue-700"
           icon={<Calendar className="w-4 h-4" />}

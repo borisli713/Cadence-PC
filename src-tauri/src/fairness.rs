@@ -733,6 +733,9 @@ mod tests {
             end_date: "2026-11-24".to_string(),
             reason: "Personal".to_string(),
             status: ApprovalStatus::Approved,
+            reviewed_by_uid: String::new(),
+            reviewed_by_name: String::new(),
+            review_note: String::new(),
         }];
         let ranked = rank_candidates_by_fairness(
             &["u_high".to_string(), "u_low".to_string()],

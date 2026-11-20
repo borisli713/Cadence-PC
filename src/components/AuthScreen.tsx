@@ -1,15 +1,18 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   CheckCircle2,
+  ExternalLink,
   Eye,
   EyeOff,
   LogOut,
   MailCheck,
   RefreshCw,
   ShieldCheck,
+  X,
 } from 'lucide-react';
 import type { User } from 'firebase/auth';
 import {
+  cancelExternalGoogleLogin,
   reloadAndCheckVerified,
   resendVerificationEmail,
   sendPasswordReset,
@@ -18,6 +21,7 @@ import {
   signOutUser,
   signUpWithEmail,
 } from '../services/authService';
+import { isTauriDesktop } from '../utils/tauriBridge';
 
 interface AuthScreenProps {
   pendingUser: User | null;
@@ -33,8 +37,17 @@ export function AuthScreen({ pendingUser, onVerifiedSuccess }: AuthScreenProps) 
   const [showPassword, setShowPassword] = useState(false);
 
   const [busy, setBusy] = useState(false);
+  const [externalBrowserPending, setExternalBrowserPending] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [infoMsg, setInfoMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (externalBrowserPending) {
+        void cancelExternalGoogleLogin();
+      }
+    };
+  }, [externalBrowserPending]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,6 +95,10 @@ export function AuthScreen({ pendingUser, onVerifiedSuccess }: AuthScreenProps) 
     setErrorMsg(null);
     setInfoMsg(null);
     setBusy(true);
+    const desktop = isTauriDesktop();
+    if (desktop) {
+      setExternalBrowserPending(true);
+    }
     try {
       const u = await signInWithGoogle();
       if (u.emailVerified) {
@@ -90,8 +107,15 @@ export function AuthScreen({ pendingUser, onVerifiedSuccess }: AuthScreenProps) 
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : String(err));
     } finally {
+      setExternalBrowserPending(false);
       setBusy(false);
     }
+  };
+
+  const handleCancelExternalGoogle = async () => {
+    await cancelExternalGoogleLogin();
+    setExternalBrowserPending(false);
+    setBusy(false);
   };
 
   const handleForgotPassword = async () => {
@@ -385,15 +409,45 @@ export function AuthScreen({ pendingUser, onVerifiedSuccess }: AuthScreenProps) 
               <div className="border-t border-slate-200 w-full" />
             </div>
 
-            <button
-              type="button"
-              disabled={busy}
-              onClick={handleGoogleSignIn}
-              className="w-full inline-flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-60 text-slate-800 text-sm font-semibold transition-colors cursor-pointer"
-            >
-              <ShieldCheck className="w-4 h-4 text-blue-600" />
-              <span>Google Account</span>
-            </button>
+            {externalBrowserPending ? (
+              <div className="p-3.5 rounded-lg bg-blue-50 border border-blue-200 space-y-2.5">
+                <div className="flex items-start gap-2.5">
+                  <ExternalLink className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-slate-900">
+                      Browser Sign-In Opened
+                    </div>
+                    <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">
+                      Finish signing in with Google in your browser, then click{' '}
+                      <span className="font-semibold">Open Cadence</span> if
+                      prompted to return.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCancelExternalGoogle}
+                  className="w-full inline-flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span>Cancel Browser Sign-In</span>
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={handleGoogleSignIn}
+                className="w-full inline-flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-60 text-slate-800 text-sm font-semibold transition-colors cursor-pointer"
+              >
+                <ShieldCheck className="w-4 h-4 text-blue-600" />
+                <span>
+                  {isTauriDesktop()
+                    ? 'Google Account (External Browser)'
+                    : 'Google Account'}
+                </span>
+              </button>
+            )}
           </div>
         )}
       </div>

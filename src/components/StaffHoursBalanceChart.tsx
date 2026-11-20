@@ -1,5 +1,7 @@
+import { useEffect, useState } from 'react';
 import { computeScheduledHoursByUid, formatHours } from '../domain/fairnessEngine';
-import type { Shift, StaffDirectoryEntry } from '../types/cadence';
+import type { Shift, StaffChartRow, StaffDirectoryEntry } from '../types/cadence';
+import { invokeComputeStaffChart } from '../utils/tauriBridge';
 import { SurfaceCard } from './UiPrimitives';
 
 interface StaffHoursBalanceChartProps {
@@ -13,34 +15,58 @@ export function StaffHoursBalanceChart({
   shifts,
   title = 'Team Hours & Fairness Balance',
 }: StaffHoursBalanceChartProps) {
+  const [rustRows, setRustRows] = useState<StaffChartRow[] | null>(null);
+
+  useEffect(() => {
+    if (staffDirectory.length === 0) return;
+    let cancelled = false;
+    void invokeComputeStaffChart(staffDirectory, shifts).then((res) => {
+      if (!cancelled && res) setRustRows(res);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [staffDirectory, shifts]);
+
   if (staffDirectory.length === 0) {
     return null;
   }
 
   const scheduledByUid = computeScheduledHoursByUid(shifts);
 
-  const rows = staffDirectory
-    .map((member) => {
-      const logged = Math.max(0, member.totalHoursWorked);
-      const scheduled = Math.max(
-        0,
-        scheduledByUid[member.uid] ?? member.scheduledHoursThisWeek,
-      );
-      const target = Math.max(1, member.weeklyHoursTarget);
-      const combined = logged + scheduled;
-      const ratio = combined / target;
-      return {
-        uid: member.uid,
-        name: member.displayName,
-        department: member.department,
-        logged,
-        scheduled,
-        target,
-        combined,
-        ratio,
-      };
-    })
-    .sort((a, b) => a.ratio - b.ratio);
+  const rows = rustRows
+    ? rustRows.map((r) => ({
+        uid: r.uid,
+        name: r.displayName,
+        department: r.department,
+        logged: r.loggedHours,
+        scheduled: r.scheduledHours,
+        target: r.targetHours,
+        combined: r.combinedHours,
+        ratio: r.utilizationRatio,
+      }))
+    : staffDirectory
+        .map((member) => {
+          const logged = Math.max(0, member.totalHoursWorked);
+          const scheduled = Math.max(
+            0,
+            scheduledByUid[member.uid] ?? member.scheduledHoursThisWeek,
+          );
+          const target = Math.max(1, member.weeklyHoursTarget);
+          const combined = logged + scheduled;
+          const ratio = combined / target;
+          return {
+            uid: member.uid,
+            name: member.displayName,
+            department: member.department,
+            logged,
+            scheduled,
+            target,
+            combined,
+            ratio,
+          };
+        })
+        .sort((a, b) => a.ratio - b.ratio);
 
   const maxAxisHours = Math.max(
     45,

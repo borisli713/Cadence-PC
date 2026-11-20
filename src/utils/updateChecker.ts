@@ -6,17 +6,35 @@ import {
 } from './tauriBridge';
 
 export const GITHUB_RELEASES_API_URL =
-  'https://api.github.com/repos/borisli713/Cadence-Mobile/releases/latest';
+  'https://api.github.com/repos/borisli713/Cadence-Mobile/releases?per_page=30';
 export const GITHUB_RELEASES_PAGE_URL =
   'https://github.com/borisli713/Cadence-Mobile/releases';
 
+interface RawGitHubRelease {
+  tag_name?: string;
+  name?: string;
+  body?: string;
+  html_url?: string;
+  draft?: boolean;
+  prerelease?: boolean;
+  assets?: Array<{ name?: string; browser_download_url?: string }>;
+}
+
+function normalizeTagVersion(raw: string): string {
+  return raw
+    .trim()
+    .replace(/^(windows-v?|win-v?|v)/i, '')
+    .trim();
+}
+
 function parseSemver(raw: string): [number, number, number] {
-  const cleaned = raw.trim().replace(/^v/i, '');
+  const cleaned = normalizeTagVersion(raw);
   const parts = cleaned.split(/[.-]/);
-  const major = Number.parseInt(parts[0] ?? '0', 10) || 0;
-  const minor = Number.parseInt(parts[1] ?? '0', 10) || 0;
-  const patch = Number.parseInt(parts[2] ?? '0', 10) || 0;
-  return [major, minor, patch];
+  return [
+    Number.parseInt(parts[0] ?? '0', 10) || 0,
+    Number.parseInt(parts[1] ?? '0', 10) || 0,
+    Number.parseInt(parts[2] ?? '0', 10) || 0,
+  ];
 }
 
 export function isNewerVersion(remote: string, current: string): boolean {
@@ -25,6 +43,21 @@ export function isNewerVersion(remote: string, current: string): boolean {
   if (rMaj !== cMaj) return rMaj > cMaj;
   if (rMin !== cMin) return rMin > cMin;
   return rPat > cPat;
+}
+
+function isWindowsRelease(rel: RawGitHubRelease): boolean {
+  if (rel.draft || rel.prerelease) return false;
+  const tag = (rel.tag_name ?? rel.name ?? '').trim().toLowerCase();
+  const assets = Array.isArray(rel.assets) ? rel.assets : [];
+  const hasWinAsset = assets.some((a) => {
+    const n = (a.name ?? '').toLowerCase();
+    return n.endsWith('.exe') || n.endsWith('.msi');
+  });
+  const hasApkOnly =
+    !hasWinAsset &&
+    assets.some((a) => (a.name ?? '').toLowerCase().endsWith('.apk'));
+  if (hasApkOnly) return false;
+  return tag.startsWith('windows-') || tag.startsWith('win-') || hasWinAsset;
 }
 
 export async function checkForGitHubUpdate(): Promise<UpdateCheckResult | null> {
@@ -39,16 +72,36 @@ export async function checkForGitHubUpdate(): Promise<UpdateCheckResult | null> 
       headers: { Accept: 'application/vnd.github+json' },
     });
     if (!response.ok) return null;
-    const json = (await response.json()) as {
-      tag_name?: string;
-      name?: string;
-      body?: string;
-      html_url?: string;
-      assets?: Array<{ name?: string; browser_download_url?: string }>;
-    };
+    const allReleases = (await response.json()) as RawGitHubRelease[];
+    const winReleases = (Array.isArray(allReleases) ? allReleases : []).filter(
+      isWindowsRelease,
+    );
 
-    const rawTag = (json.tag_name ?? json.name ?? '').trim();
-    const versionName = rawTag.replace(/^v/i, '') || currentVersion;
+    if (winReleases.length === 0) {
+      return {
+        currentVersion,
+        latest: {
+          versionName: currentVersion,
+          releaseNotes: 'No newer Windows desktop release published yet.',
+          downloadPageUrl: GITHUB_RELEASES_PAGE_URL,
+          windowsAssetUrl: null,
+          windowsAssetName: null,
+        },
+        updateAvailable: false,
+      };
+    }
+
+    winReleases.sort((a, b) => {
+      const va = normalizeTagVersion(a.tag_name ?? a.name ?? '');
+      const vb = normalizeTagVersion(b.tag_name ?? b.name ?? '');
+      if (isNewerVersion(va, vb)) return -1;
+      if (isNewerVersion(vb, va)) return 1;
+      return 0;
+    });
+
+    const json = winReleases[0];
+    const versionName =
+      normalizeTagVersion(json.tag_name ?? json.name ?? '') || currentVersion;
     const assets = Array.isArray(json.assets) ? json.assets : [];
     const winAsset = assets.find((a) => {
       const n = (a.name ?? '').toLowerCase();

@@ -317,6 +317,47 @@ export interface UpdateCheckResult {
   updateAvailable: boolean;
 }
 
+export interface ExternalOAuthResult {
+  idToken: string;
+  accessToken: string | null;
+  email: string | null;
+  displayName: string | null;
+}
+
+export interface DashboardKpis {
+  myShiftsCount: number;
+  myUpcomingCount: number;
+  myScheduledHours: number;
+  myVerifiedHours: number;
+  pendingApprovalsCount: number;
+  pendingTimeOffCount: number;
+  conflictShiftsCount: number;
+  openShiftsCount: number;
+}
+
+export interface StaffChartRow {
+  uid: string;
+  displayName: string;
+  department: string;
+  loggedHours: number;
+  scheduledHours: number;
+  targetHours: number;
+  combinedHours: number;
+  utilizationRatio: number;
+  utilizationPercent: number;
+}
+
+export interface NotificationWorkPayload {
+  key: string;
+  title: string;
+  message: string;
+}
+
+export interface ValidationOutcome {
+  valid: boolean;
+  errorMessage: string | null;
+}
+
 export interface WorkspaceUiData {
   profile: UserProfile;
   staffDirectory: StaffDirectoryEntry[];

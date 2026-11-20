@@ -1,10 +1,12 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, History, Search, XCircle } from 'lucide-react';
 import {
   ApprovalStatus,
   SCHEDULE_CHANGE_TYPE_LABEL,
+  ScheduleChangeRequest,
   WorkspaceUiData,
 } from '../types/cadence';
+import { invokeFilterShiftHistory } from '../utils/tauriBridge';
 import {
   ApprovalStatusChip,
   EmptyStatePanel,
@@ -22,6 +24,24 @@ type HistoryFilter = 'all' | 'approved' | 'rejected';
 export function ShiftHistoryScreen({ data }: ShiftHistoryScreenProps) {
   const [filter, setFilter] = useState<HistoryFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [rustHistory, setRustHistory] = useState<{
+    items: ScheduleChangeRequest[];
+    totalResolved: number;
+    approvedCount: number;
+    rejectedCount: number;
+  } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void invokeFilterShiftHistory(data.scheduleChanges, filter, searchQuery).then(
+      (res) => {
+        if (!cancelled && res) setRustHistory(res);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [data.scheduleChanges, filter, searchQuery]);
 
   const resolvedRequests = useMemo(
     () =>
@@ -33,19 +53,16 @@ export function ShiftHistoryScreen({ data }: ShiftHistoryScreenProps) {
     [data.scheduleChanges],
   );
 
-  const approvedCount = useMemo(
-    () =>
-      resolvedRequests.filter((c) => c.status === ApprovalStatus.APPROVED)
-        .length,
-    [resolvedRequests],
-  );
-  const rejectedCount = useMemo(
-    () =>
-      resolvedRequests.filter((c) => c.status === ApprovalStatus.DENIED).length,
-    [resolvedRequests],
-  );
+  const approvedCount =
+    rustHistory?.approvedCount ??
+    resolvedRequests.filter((c) => c.status === ApprovalStatus.APPROVED).length;
+  const rejectedCount =
+    rustHistory?.rejectedCount ??
+    resolvedRequests.filter((c) => c.status === ApprovalStatus.DENIED).length;
+  const totalResolvedCount = rustHistory?.totalResolved ?? resolvedRequests.length;
 
   const filteredList = useMemo(() => {
+    if (rustHistory) return rustHistory.items;
     const q = searchQuery.trim().toLowerCase();
     return resolvedRequests.filter((item) => {
       if (filter === 'approved' && item.status !== ApprovalStatus.APPROVED) {
@@ -62,7 +79,7 @@ export function ShiftHistoryScreen({ data }: ShiftHistoryScreenProps) {
         item.proposedDate.includes(q)
       );
     });
-  }, [resolvedRequests, filter, searchQuery]);
+  }, [rustHistory, resolvedRequests, filter, searchQuery]);
 
   return (
     <div className="space-y-6">
@@ -94,7 +111,7 @@ export function ShiftHistoryScreen({ data }: ShiftHistoryScreenProps) {
         <div className="inline-flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-1">
           {(
             [
-              ['all', `All (${resolvedRequests.length})`],
+              ['all', `All (${totalResolvedCount})`],
               ['approved', `Approved (${approvedCount})`],
               ['rejected', `Rejected (${rejectedCount})`],
             ] as const

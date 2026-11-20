@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   Database,
+  Download,
   Shield,
   ShieldOff,
   UserPlus,
@@ -15,6 +16,7 @@ import {
   UserRole,
   WorkspaceUiData,
 } from '../types/cadence';
+import { invokeSaveTeamHoursCsv } from '../utils/tauriBridge';
 import { StaffHoursBalanceChart } from '../components/StaffHoursBalanceChart';
 import {
   EmptyStatePanel,
@@ -118,43 +120,88 @@ export function TeamHoursScreen({
           </p>
         </div>
 
-        {isManager && (
-          <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
+          {data.staffDirectory.length > 0 && (
             <button
               type="button"
-              disabled={seeding}
               onClick={async () => {
-                setSeeding(true);
-                try {
-                  await onSeedSampleData();
-                  onShowFeedback(
-                    'Loaded sample overlaps, pending requests, shift report, and time off.',
-                  );
-                } finally {
-                  setSeeding(false);
+                const savedPath = await invokeSaveTeamHoursCsv(
+                  data.staffDirectory,
+                  data.shifts,
+                );
+                if (typeof savedPath === 'string') {
+                  onShowFeedback(`Exported team hours CSV to ${savedPath}`);
+                } else if (savedPath === undefined) {
+                  const csv = [
+                    'Name,Department,Role,LoggedHours,ScheduledHours,TargetHours,Utilization%',
+                    ...sortedStaff.map(({ member, scheduled, target, ratio }) =>
+                      [
+                        `"${member.displayName.replace(/"/g, '""')}"`,
+                        `"${member.department.replace(/"/g, '""')}"`,
+                        member.role,
+                        member.totalHoursWorked.toFixed(2),
+                        scheduled.toFixed(2),
+                        target.toFixed(1),
+                        `${Math.round(ratio * 100)}%`,
+                      ].join(','),
+                    ),
+                  ].join('\n');
+                  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = 'cadence-team-hours.csv';
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                  onShowFeedback('Exported team hours CSV.');
                 }
               }}
-              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-60 text-xs font-semibold text-slate-800 cursor-pointer whitespace-nowrap shrink-0"
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-800 cursor-pointer whitespace-nowrap shrink-0"
             >
-              <Database className="w-4 h-4 text-slate-600" />
-              <span>
-                {seeding ? 'Seeding...' : 'Load Sample Overlaps & Requests'}
-              </span>
+              <Download className="w-4 h-4 text-slate-600" />
+              <span>Export CSV</span>
             </button>
+          )}
+          {isManager && (
+            <>
+              <button
+                type="button"
+                disabled={seeding}
+                onClick={async () => {
+                  setSeeding(true);
+                  try {
+                    await onSeedSampleData();
+                    onShowFeedback(
+                      'Loaded sample overlaps, pending requests, shift report, and time off.',
+                    );
+                  } finally {
+                    setSeeding(false);
+                  }
+                }}
+                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-60 text-xs font-semibold text-slate-800 cursor-pointer whitespace-nowrap shrink-0"
+              >
+                <Database className="w-4 h-4 text-slate-600" />
+                <span>
+                  {seeding ? 'Seeding...' : 'Load Sample Overlaps & Requests'}
+                </span>
+              </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                setErrorMsg(null);
-                setAddOpen(true);
-              }}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0"
-            >
-              <UserPlus className="w-4 h-4" />
-              <span>Add Roster Staff</span>
-            </button>
-          </div>
-        )}
+              <button
+                type="button"
+                onClick={() => {
+                  setErrorMsg(null);
+                  setAddOpen(true);
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span>Add Roster Staff</span>
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       <StaffHoursBalanceChart

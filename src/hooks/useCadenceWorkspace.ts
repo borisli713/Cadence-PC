@@ -67,7 +67,11 @@ import {
   filterNewManagerWorkAlerts,
   filterUnnotifiedAlerts,
 } from '../utils/notificationHelper';
-import { getDesktopAppVersion, isTauriDesktop } from '../utils/tauriBridge';
+import {
+  getDesktopAppVersion,
+  invokeBuildManagerWorkPayloads,
+  isTauriDesktop,
+} from '../utils/tauriBridge';
 import { checkForGitHubUpdate } from '../utils/updateChecker';
 
 const WEEK_SLOTS_STORAGE_KEY = 'cadence_week_slots_v1';
@@ -249,20 +253,36 @@ export function useCadenceWorkspace() {
   // OS / Windows toast alerts for manager queues (pending changes, time off, submitted reports)
   useEffect(() => {
     if (!activeProfile || activeProfile.role !== UserRole.MANAGER) return;
-    const payloads = buildManagerWorkPayloads(
-      activeProfile.uid,
-      scheduleChanges,
-      timeOffRequests,
-      shiftReports,
-    );
-    const fresh = filterNewManagerWorkAlerts(
-      activeProfile.uid,
-      payloads,
-      activeProfile.pushNotificationsEnabled,
-    );
-    fresh.slice(0, 3).forEach((item) => {
-      void dispatchOsNotification(item.title, item.message);
-    });
+    let cancelled = false;
+    const dispatchPayloads = async () => {
+      const rustPayloads = await invokeBuildManagerWorkPayloads(
+        activeProfile.uid,
+        scheduleChanges,
+        timeOffRequests,
+        shiftReports,
+      );
+      if (cancelled) return;
+      const payloads =
+        rustPayloads ??
+        buildManagerWorkPayloads(
+          activeProfile.uid,
+          scheduleChanges,
+          timeOffRequests,
+          shiftReports,
+        );
+      const fresh = filterNewManagerWorkAlerts(
+        activeProfile.uid,
+        payloads,
+        activeProfile.pushNotificationsEnabled,
+      );
+      fresh.slice(0, 3).forEach((item) => {
+        void dispatchOsNotification(item.title, item.message);
+      });
+    };
+    void dispatchPayloads();
+    return () => {
+      cancelled = true;
+    };
   }, [activeProfile, scheduleChanges, timeOffRequests, shiftReports]);
 
   const runUpdateCheck = useCallback(async (openIfUpdateFound = false) => {

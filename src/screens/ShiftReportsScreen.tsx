@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   CheckCircle2,
   ClipboardCheck,
+  Download,
   Flag,
   Plus,
 } from 'lucide-react';
@@ -19,6 +20,7 @@ import {
   UserRole,
   WorkspaceUiData,
 } from '../types/cadence';
+import { invokeSaveReportsCsv } from '../utils/tauriBridge';
 import {
   EmptyStatePanel,
   ModalShell,
@@ -185,25 +187,69 @@ export function ShiftReportsScreen({
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => {
-            setLinkedShiftId('');
-            setTitle('Operations Shift');
-            setDepartment(data.profile.department);
-            setDate(formatIsoDate(new Date()));
-            setStartTime('09:00');
-            setEndTime('17:00');
-            setBreakMinutes('30');
-            setHandoffNotes('');
-            setErrorMsg(null);
-            setModalOpen(true);
-          }}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Log Shift Report</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {filteredReports.length > 0 && (
+            <button
+              type="button"
+              onClick={async () => {
+                const savedPath = await invokeSaveReportsCsv(filteredReports);
+                if (typeof savedPath === 'string') {
+                  onShowFeedback(`Saved CSV report to ${savedPath}`);
+                } else if (savedPath === undefined) {
+                  const csv = [
+                    'Date,Staff,Department,Shift,Start,End,BreakMin,WorkedHours,Status',
+                    ...filteredReports.map((r) =>
+                      [
+                        r.date,
+                        `"${r.staffName.replace(/"/g, '""')}"`,
+                        `"${r.department.replace(/"/g, '""')}"`,
+                        `"${r.shiftTitle.replace(/"/g, '""')}"`,
+                        r.actualStartTime,
+                        r.actualEndTime,
+                        r.breakMinutes,
+                        r.workedHours.toFixed(2),
+                        r.status,
+                      ].join(','),
+                    ),
+                  ].join('\n');
+                  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = 'cadence-shift-reports.csv';
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                  onShowFeedback('Exported shift reports CSV.');
+                }
+              }}
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0"
+            >
+              <Download className="w-4 h-4 text-slate-600" />
+              <span>Export CSV</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setLinkedShiftId('');
+              setTitle('Operations Shift');
+              setDepartment(data.profile.department);
+              setDate(formatIsoDate(new Date()));
+              setStartTime('09:00');
+              setEndTime('17:00');
+              setBreakMinutes('30');
+              setHandoffNotes('');
+              setErrorMsg(null);
+              setModalOpen(true);
+            }}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Log Shift Report</span>
+          </button>
+        </div>
       </div>
 
       {/* Filter Tabs */}

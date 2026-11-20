@@ -77,7 +77,7 @@ jobs:
                   if not has_win_asset:
                       continue
                   tag = (rel.get("tag_name") or "").strip()
-                  m = re.match(r"^v?(\d+)\.(\d+)\.(\d+)$", tag)
+                  m = re.match(r"^(?:windows-v?|win-v?|v)?(\d+)\.(\d+)\.(\d+)$", tag, re.IGNORECASE)
                   if m:
                       win_versions.append(tuple(int(x) for x in m.groups()))
           except Exception as exc:
@@ -89,7 +89,7 @@ jobs:
               major, minor, patch = max(win_versions)
               next_ver = f"{major}.{minor}.{patch + 1}"
 
-          tag_name = f"v{next_ver}"
+          tag_name = f"windows-v{next_ver}"
 
           # Patch package.json
           with open("package.json", "r", encoding="utf-8") as f:
@@ -257,7 +257,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag_name }}
-          name: Cadence Windows ${{ steps.version.outputs.tag_name }}
+          name: Cadence Windows v${{ steps.version.outputs.version }}
           body_path: release_notes.md
           files: release-assets/*
-          make_latest: true
+          make_latest: false

@@ -3,6 +3,7 @@ import {
   GoogleAuthProvider,
   sendEmailVerification,
   sendPasswordResetEmail,
+  signInWithCredential,
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut as firebaseSignOut,
@@ -10,6 +11,11 @@ import {
   type User,
 } from 'firebase/auth';
 import { auth } from '../firebase';
+import {
+  invokeCancelExternalGoogleLogin,
+  invokeStartExternalGoogleLogin,
+  isTauriDesktop,
+} from '../utils/tauriBridge';
 
 export function mapAuthError(err: unknown): string {
   const code =
@@ -92,7 +98,28 @@ export async function signUpWithEmail(
   }
 }
 
+export async function signInWithGoogleDesktopExternal(): Promise<User> {
+  try {
+    const oauthResult = await invokeStartExternalGoogleLogin();
+    const credential = GoogleAuthProvider.credential(
+      oauthResult.idToken,
+      oauthResult.accessToken ?? undefined,
+    );
+    const cred = await signInWithCredential(auth, credential);
+    return cred.user;
+  } catch (err) {
+    throw new Error(mapAuthError(err));
+  }
+}
+
+export async function cancelExternalGoogleLogin(): Promise<void> {
+  await invokeCancelExternalGoogleLogin();
+}
+
 export async function signInWithGoogle(): Promise<User> {
+  if (isTauriDesktop()) {
+    return signInWithGoogleDesktopExternal();
+  }
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
   try {

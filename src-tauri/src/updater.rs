@@ -2,32 +2,47 @@ use serde::Deserialize;
 
 use crate::models::{RemoteReleaseInfo, UpdateCheckResult};
 
-pub const GITHUB_RELEASES_API_URL: &str =
-    "https://api.github.com/repos/borisli713/Cadence-Mobile/releases/latest";
+pub const GITHUB_RELEASES_LIST_API_URL: &str =
+    "https://api.github.com/repos/borisli713/Cadence-Mobile/releases?per_page=30";
 pub const GITHUB_RELEASES_PAGE_URL: &str =
-    "https://github.com/borisli713/Cadence-Mobile/releases/latest";
+    "https://github.com/borisli713/Cadence-Mobile/releases";
 
-#[derive(Debug, Deserialize)]
-struct GitHubReleaseAsset {
-    name: String,
-    browser_download_url: String,
+#[derive(Debug, Clone, Deserialize)]
+pub struct GitHubReleaseAsset {
+    pub name: String,
+    pub browser_download_url: String,
 }
 
-#[derive(Debug, Deserialize)]
-struct GitHubLatestRelease {
-    tag_name: String,
-    html_url: Option<String>,
-    body: Option<String>,
+#[derive(Debug, Clone, Deserialize)]
+pub struct GitHubReleaseEntry {
+    pub tag_name: String,
+    pub html_url: Option<String>,
+    pub body: Option<String>,
     #[serde(default)]
-    draft: bool,
+    pub draft: bool,
     #[serde(default)]
-    prerelease: bool,
+    pub prerelease: bool,
     #[serde(default)]
-    assets: Vec<GitHubReleaseAsset>,
+    pub assets: Vec<GitHubReleaseAsset>,
 }
 
 pub fn normalize_version_name(raw: &str) -> String {
-    let trimmed = raw.trim().trim_start_matches(['v', 'V']);
+    let mut trimmed = raw.trim();
+    for prefix in [
+        "windows-v",
+        "windows-V",
+        "windows-",
+        "win-v",
+        "win-V",
+        "win-",
+        "v",
+        "V",
+    ] {
+        if let Some(rest) = trimmed.strip_prefix(prefix) {
+            trimmed = rest;
+            break;
+        }
+    }
     if trimmed.chars().any(|c| c.is_ascii_digit()) {
         trimmed.to_string()
     } else {
@@ -37,11 +52,7 @@ pub fn normalize_version_name(raw: &str) -> String {
 
 pub fn parse_version_parts(version: &str) -> Vec<u64> {
     let norm = normalize_version_name(version);
-    let core = norm
-        .split(['-', '+'])
-        .next()
-        .unwrap_or("")
-        .trim();
+    let core = norm.split(['-', '+']).next().unwrap_or("").trim();
     if core.is_empty() {
         return Vec::new();
     }
@@ -67,6 +78,36 @@ pub fn compare_version_names(version_a: &str, version_b: &str) -> std::cmp::Orde
     std::cmp::Ordering::Equal
 }
 
+pub fn is_windows_release(release: &GitHubReleaseEntry) -> bool {
+    if release.draft || release.prerelease {
+        return false;
+    }
+    let tag_lower = release.tag_name.trim().to_ascii_lowercase();
+    let has_win_tag = tag_lower.starts_with("windows-") || tag_lower.starts_with("win-");
+    let has_win_asset = release.assets.iter().any(|a| {
+        let lower = a.name.to_ascii_lowercase();
+        lower.ends_with(".exe") || lower.ends_with(".msi")
+    });
+    let has_android_only_asset = !has_win_asset
+        && release
+            .assets
+            .iter()
+            .any(|a| a.name.to_ascii_lowercase().ends_with(".apk"));
+
+    if has_android_only_asset {
+        return false;
+    }
+    has_win_tag || has_win_asset
+}
+
+pub fn select_latest_windows_release(releases: &[GitHubReleaseEntry]) -> Option<GitHubReleaseEntry> {
+    releases
+        .iter()
+        .filter(|r| is_windows_release(r))
+        .max_by(|a, b| compare_version_names(&a.tag_name, &b.tag_name))
+        .cloned()
+}
+
 pub fn clean_release_notes(raw: &str) -> String {
     if raw.trim().is_empty() {
         return String::new();
@@ -75,7 +116,10 @@ pub fn clean_release_notes(raw: &str) -> String {
         .lines()
         .map(|l| l.trim())
         .filter(|l| {
-            !l.is_empty() && !l.starts_with("## ") && !l.starts_with("**Full Changelog**")
+            !l.is_empty()
+                && !l.starts_with("## ")
+                && !l.starts_with("### ")
+                && !l.starts_with("**Full Changelog**")
         })
         .map(|l| {
             l.trim_start_matches("- ")
@@ -100,13 +144,14 @@ pub fn clean_release_notes(raw: &str) -> String {
 }
 
 pub async fn check_for_github_update(current_version: &str) -> Result<UpdateCheckResult, String> {
+    let norm_current = normalize_version_name(current_version);
     let client = reqwest::Client::builder()
         .user_agent("Cadence-Windows-Desktop")
         .build()
         .map_err(|e| format!("Failed to initialize HTTP client: {e}"))?;
 
     let resp = client
-        .get(GITHUB_RELEASES_API_URL)
+        .get(GITHUB_RELEASES_LIST_API_URL)
         .header("Accept", "application/vnd.github+json")
         .send()
         .await
@@ -116,22 +161,32 @@ pub async fn check_for_github_update(current_version: &str) -> Result<UpdateChec
         return Err(format!("GitHub API returned status {}", resp.status()));
     }
 
-    let release: GitHubLatestRelease = resp
+    let releases: Vec<GitHubReleaseEntry> = resp
         .json()
         .await
-        .map_err(|e| format!("Failed to parse GitHub release JSON: {e}"))?;
+        .map_err(|e| format!("Failed to parse GitHub releases JSON: {e}"))?;
 
-    if release.draft || release.prerelease {
-        return Err("Latest release is draft or prerelease.".to_string());
-    }
+    let Some(release) = select_latest_windows_release(&releases) else {
+        return Ok(UpdateCheckResult {
+            current_version: norm_current.clone(),
+            latest: RemoteReleaseInfo {
+                version_name: norm_current,
+                release_notes: "No newer Windows desktop release published yet.".to_string(),
+                download_page_url: GITHUB_RELEASES_PAGE_URL.to_string(),
+                windows_asset_url: None,
+                windows_asset_name: None,
+            },
+            update_available: false,
+        });
+    };
 
     let clean_ver = normalize_version_name(&release.tag_name);
     if clean_ver.is_empty() {
-        return Err("Release tag did not contain a semantic version.".to_string());
+        return Err("Windows release tag did not contain a semantic version.".to_string());
     }
 
     let win_asset = release.assets.iter().find(|a| {
-        let lower = a.name.to_lowercase();
+        let lower = a.name.to_ascii_lowercase();
         lower.ends_with(".exe") || lower.ends_with(".msi") || lower.contains("windows")
     });
 
@@ -149,10 +204,10 @@ pub async fn check_for_github_update(current_version: &str) -> Result<UpdateChec
     };
 
     let update_available =
-        compare_version_names(&latest.version_name, current_version) == std::cmp::Ordering::Greater;
+        compare_version_names(&latest.version_name, &norm_current) == std::cmp::Ordering::Greater;
 
     Ok(UpdateCheckResult {
-        current_version: normalize_version_name(current_version),
+        current_version: norm_current,
         latest,
         update_available,
     })
@@ -162,19 +217,46 @@ pub async fn check_for_github_update(current_version: &str) -> Result<UpdateChec
 mod tests {
     use super::*;
 
+    fn mk_release(tag: &str, asset_names: &[&str]) -> GitHubReleaseEntry {
+        GitHubReleaseEntry {
+            tag_name: tag.to_string(),
+            html_url: None,
+            body: Some("- Fixed Windows desktop build".to_string()),
+            draft: false,
+            prerelease: false,
+            assets: asset_names
+                .iter()
+                .map(|n| GitHubReleaseAsset {
+                    name: (*n).to_string(),
+                    browser_download_url: format!("https://example.com/{}", n),
+                })
+                .collect(),
+        }
+    }
+
     #[test]
-    fn compares_versions_starting_at_1_0_0() {
+    fn compares_windows_and_plain_tags_accurately() {
+        assert_eq!(normalize_version_name("windows-v1.0.3"), "1.0.3");
         assert_eq!(
-            compare_version_names("1.0.1", "1.0.0"),
+            compare_version_names("windows-v1.0.1", "1.0.0"),
             std::cmp::Ordering::Greater
         );
         assert_eq!(
-            compare_version_names("v1.0.2", "1.0.2"),
+            compare_version_names("v1.0.2", "windows-v1.0.2"),
             std::cmp::Ordering::Equal
         );
-        assert_eq!(
-            compare_version_names("1.0.0", "1.0.1"),
-            std::cmp::Ordering::Less
-        );
+    }
+
+    #[test]
+    fn ignores_android_apk_releases_even_if_version_is_higher() {
+        let releases = vec![
+            mk_release("v1.1.9", &["app-release.apk"]),
+            mk_release("windows-v1.0.0", &["Cadence-windows-v1.0.0-setup.exe"]),
+        ];
+        let picked = select_latest_windows_release(&releases).unwrap();
+        assert_eq!(normalize_version_name(&picked.tag_name), "1.0.0");
+
+        let only_android = vec![mk_release("v1.1.9", &["Cadence-Mobile.apk"])];
+        assert!(select_latest_windows_release(&only_android).is_none());
     }
 }

@@ -281,10 +281,10 @@ export function AppUpdateDialog({
       onClose={onClose}
       title={
         updateAvailable
-          ? `Update Available: v${latest.versionName}`
-          : 'Cadence Is Up to Date'
+          ? `Windows Update Available: v${latest.versionName}`
+          : 'Cadence Windows Is Up to Date'
       }
-      subtitle={`Installed v${currentVersion} · Latest GitHub release v${latest.versionName}`}
+      subtitle={`Installed Windows v${currentVersion} · Latest Windows release v${latest.versionName}`}
       footer={
         <>
           <button
@@ -327,13 +327,13 @@ export function AppUpdateDialog({
     >
       <div className="space-y-3">
         <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs">
-          <span className="text-slate-600">Current Version</span>
+          <span className="text-slate-600">Current Windows Version</span>
           <span className="font-mono-tabular font-semibold text-slate-900">
             v{currentVersion}
           </span>
         </div>
         <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs">
-          <span className="text-slate-600">Latest Release</span>
+          <span className="text-slate-600">Latest Windows Release</span>
           <span className="font-mono-tabular font-semibold text-blue-700">
             v{latest.versionName}
           </span>

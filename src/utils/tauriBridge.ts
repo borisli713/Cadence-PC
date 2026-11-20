@@ -1,13 +1,21 @@
 import type {
+  DashboardKpis,
+  ExternalOAuthResult,
   FairnessArrangementItem,
   FairnessScoreBreakdown,
   GeneratedShiftSpec,
+  NotificationWorkPayload,
   OpenShiftAssignmentItem,
+  ScheduleChangeRequest,
+  ScheduleChangeType,
   Shift,
+  ShiftReport,
   ShiftSubmission,
+  StaffChartRow,
   StaffDirectoryEntry,
   TimeOffRequest,
   UpdateCheckResult,
+  ValidationOutcome,
   WeekSlotConfig,
 } from '../types/cadence';
 
@@ -18,85 +26,91 @@ declare global {
 }
 
 export function isTauriDesktop(): boolean {
-  return typeof window !== 'undefined' && typeof window.__TAURI_INTERNALS__ !== 'undefined';
+  return (
+    typeof window !== 'undefined' &&
+    typeof window.__TAURI_INTERNALS__ !== 'undefined'
+  );
 }
 
-async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+async function tauriInvoke<T>(
+  cmd: string,
+  args?: Record<string, unknown>,
+): Promise<T> {
   const { invoke } = await import('@tauri-apps/api/core');
   return invoke<T>(cmd, args);
 }
 
-export async function getDesktopAppVersion(): Promise<string> {
-  if (!isTauriDesktop()) return '1.0.0';
-  try {
-    return await tauriInvoke<string>('get_app_version');
-  } catch {
-    return '1.0.0';
-  }
-}
-
-export async function invokeBuildFairnessPlan(
-  shifts: Shift[],
-  staffDirectory: StaffDirectoryEntry[],
-  timeOffRequests: TimeOffRequest[],
-): Promise<FairnessArrangementItem[] | null> {
+async function tryInvoke<T>(
+  cmd: string,
+  args?: Record<string, unknown>,
+): Promise<T | null> {
   if (!isTauriDesktop()) return null;
   try {
-    return await tauriInvoke<FairnessArrangementItem[]>('build_fairness_plan_cmd', {
-      shifts,
-      staffDirectory,
-      timeOffRequests,
-    });
+    return await tauriInvoke<T>(cmd, args);
   } catch {
     return null;
   }
 }
 
-export async function invokeBuildOpenShiftPlan(
+export async function getDesktopAppVersion(): Promise<string> {
+  return (await tryInvoke<string>('get_app_version')) ?? '1.0.0';
+}
+
+export async function invokeStartExternalGoogleLogin(): Promise<ExternalOAuthResult> {
+  if (!isTauriDesktop()) {
+    throw new Error('External browser OAuth bridge requires the desktop app.');
+  }
+  return tauriInvoke<ExternalOAuthResult>('start_external_google_login_cmd');
+}
+
+export async function invokeCancelExternalGoogleLogin(): Promise<void> {
+  await tryInvoke<void>('cancel_external_google_login_cmd');
+}
+
+export const invokeBuildFairnessPlan = (
+  shifts: Shift[],
+  staffDirectory: StaffDirectoryEntry[],
+  timeOffRequests: TimeOffRequest[],
+) =>
+  tryInvoke<FairnessArrangementItem[]>('build_fairness_plan_cmd', {
+    shifts,
+    staffDirectory,
+    timeOffRequests,
+  });
+
+export const invokeBuildOpenShiftPlan = (
   shifts: Shift[],
   staffDirectory: StaffDirectoryEntry[],
   submissions: ShiftSubmission[],
   timeOffRequests: TimeOffRequest[],
   requireExplicitSubmission: boolean,
-): Promise<OpenShiftAssignmentItem[] | null> {
-  if (!isTauriDesktop()) return null;
-  try {
-    return await tauriInvoke<OpenShiftAssignmentItem[]>('build_open_shift_plan_cmd', {
-      shifts,
-      staffDirectory,
-      submissions,
-      timeOffRequests,
-      requireExplicitSubmission,
-    });
-  } catch {
-    return null;
-  }
-}
+) =>
+  tryInvoke<OpenShiftAssignmentItem[]>('build_open_shift_plan_cmd', {
+    shifts,
+    staffDirectory,
+    submissions,
+    timeOffRequests,
+    requireExplicitSubmission,
+  });
 
-export async function invokeGenerateWeeklySchedule(
+export const invokeGenerateWeeklySchedule = (
   weekStartDate: string,
   slots: WeekSlotConfig[],
   staffDirectory: StaffDirectoryEntry[],
   existingShifts: Shift[],
   submissions: ShiftSubmission[],
   timeOffRequests: TimeOffRequest[],
-): Promise<GeneratedShiftSpec[] | null> {
-  if (!isTauriDesktop()) return null;
-  try {
-    return await tauriInvoke<GeneratedShiftSpec[]>('generate_weekly_schedule_cmd', {
-      weekStartDate,
-      slots,
-      staffDirectory,
-      existingShifts,
-      submissions,
-      timeOffRequests,
-    });
-  } catch {
-    return null;
-  }
-}
+) =>
+  tryInvoke<GeneratedShiftSpec[]>('generate_weekly_schedule_cmd', {
+    weekStartDate,
+    slots,
+    staffDirectory,
+    existingShifts,
+    submissions,
+    timeOffRequests,
+  });
 
-export async function invokeRankCandidates(
+export const invokeRankCandidates = (
   candidateUids: string[],
   staffDirectory: StaffDirectoryEntry[],
   allShifts: Shift[],
@@ -105,23 +119,122 @@ export async function invokeRankCandidates(
   endTime: string,
   excludeShiftId: string | null,
   timeOffRequests: TimeOffRequest[],
-): Promise<FairnessScoreBreakdown[] | null> {
-  if (!isTauriDesktop()) return null;
-  try {
-    return await tauriInvoke<FairnessScoreBreakdown[]>('rank_candidates_cmd', {
-      candidateUids,
-      staffDirectory,
-      allShifts,
-      targetDate,
-      startTime,
-      endTime,
-      excludeShiftId,
-      timeOffRequests,
-    });
-  } catch {
-    return null;
-  }
-}
+) =>
+  tryInvoke<FairnessScoreBreakdown[]>('rank_candidates_cmd', {
+    candidateUids,
+    staffDirectory,
+    allShifts,
+    targetDate,
+    startTime,
+    endTime,
+    excludeShiftId,
+    timeOffRequests,
+  });
+
+export const invokeComputeDashboardKpis = (
+  uid: string,
+  weeklyHoursTarget: number,
+  shifts: Shift[],
+  scheduleChangesPending: number,
+  timeOffRequests: TimeOffRequest[],
+  staffDirectory: StaffDirectoryEntry[],
+) =>
+  tryInvoke<DashboardKpis>('compute_dashboard_kpis_cmd', {
+    uid,
+    weeklyHoursTarget,
+    shifts,
+    scheduleChangesPending,
+    timeOffRequests,
+    staffDirectory,
+  });
+
+export const invokeComputeStaffChart = (
+  staffDirectory: StaffDirectoryEntry[],
+  shifts: Shift[],
+) =>
+  tryInvoke<StaffChartRow[]>('compute_staff_chart_cmd', {
+    staffDirectory,
+    shifts,
+  });
+
+export const invokeValidateShift = (
+  title: string,
+  department: string,
+  date: string,
+  startTime: string,
+  endTime: string,
+) =>
+  tryInvoke<ValidationOutcome>('validate_shift_cmd', {
+    title,
+    department,
+    date,
+    startTime,
+    endTime,
+  });
+
+export const invokeValidateShiftReport = (
+  shiftTitle: string,
+  department: string,
+  date: string,
+  actualStartTime: string,
+  actualEndTime: string,
+  breakMinutes: number,
+) =>
+  tryInvoke<ValidationOutcome>('validate_shift_report_cmd', {
+    shiftTitle,
+    department,
+    date,
+    actualStartTime,
+    actualEndTime,
+    breakMinutes,
+  });
+
+export const invokeValidateTimeOff = (
+  startDate: string,
+  endDate: string,
+  reason: string,
+) =>
+  tryInvoke<ValidationOutcome>('validate_time_off_cmd', {
+    startDate,
+    endDate,
+    reason,
+  });
+
+export const invokeValidateScheduleChange = (
+  shift: Shift,
+  requesterUid: string,
+  isManager: boolean,
+  requestType: ScheduleChangeType,
+  proposedDate: string,
+  proposedStartTime: string,
+  proposedEndTime: string,
+  proposedAssigneeUid: string,
+  reason: string,
+) =>
+  tryInvoke<ValidationOutcome>('validate_schedule_change_cmd', {
+    shift,
+    requesterUid,
+    isManager,
+    requestType,
+    proposedDate,
+    proposedStartTime,
+    proposedEndTime,
+    proposedAssigneeUid,
+    reason,
+  });
+
+export const invokeBuildManagerWorkPayloads = (
+  managerUid: string,
+  scheduleChanges: ScheduleChangeRequest[],
+  timeOffRequests: TimeOffRequest[],
+  shiftReports: ShiftReport[],
+) =>
+  tryInvoke<NotificationWorkPayload[]>('build_manager_work_payloads_cmd', {
+    managerUid,
+    scheduleChanges,
+    timeOffRequests,
+    shiftReports,
+  });
 
 export async function invokeSaveIcsFile(
   shifts: Shift[],
@@ -134,7 +247,59 @@ export async function invokeSaveIcsFile(
   });
 }
 
-export async function invokeNativeNotification(title: string, body: string): Promise<boolean> {
+export const invokeSaveReportsCsv = async (
+  reports: ShiftReport[],
+  defaultFilename = 'cadence-shift-reports.csv',
+): Promise<string | null | undefined> => {
+  if (!isTauriDesktop()) return undefined;
+  return tauriInvoke<string | null>('save_reports_csv_cmd', {
+    reports,
+    defaultFilename,
+  });
+};
+
+export const invokeSaveTeamHoursCsv = async (
+  staffDirectory: StaffDirectoryEntry[],
+  shifts: Shift[],
+  defaultFilename = 'cadence-team-hours.csv',
+): Promise<string | null | undefined> => {
+  if (!isTauriDesktop()) return undefined;
+  return tauriInvoke<string | null>('save_team_hours_csv_cmd', {
+    staffDirectory,
+    shifts,
+    defaultFilename,
+  });
+};
+
+export const invokeFilterShiftHistory = (
+  changes: ScheduleChangeRequest[],
+  filter: 'all' | 'approved' | 'rejected',
+  searchQuery: string,
+) =>
+  tryInvoke<{
+    items: ScheduleChangeRequest[];
+    totalResolved: number;
+    approvedCount: number;
+    rejectedCount: number;
+  }>('filter_shift_history_cmd', { changes, filter, searchQuery });
+
+export const invokeBuildSampleWorkspace = (
+  managerUid: string,
+  managerName: string,
+) =>
+  tryInvoke<{
+    roster: StaffDirectoryEntry[];
+    shifts: Shift[];
+    scheduleChanges: ScheduleChangeRequest[];
+    shiftReports: ShiftReport[];
+    shiftSubmissions: ShiftSubmission[];
+    timeOffRequests: TimeOffRequest[];
+  }>('build_sample_workspace_cmd', { managerUid, managerName });
+
+export async function invokeNativeNotification(
+  title: string,
+  body: string,
+): Promise<boolean> {
   if (!isTauriDesktop()) return false;
   try {
     await tauriInvoke<void>('send_native_notification_cmd', { title, body });
@@ -144,14 +309,8 @@ export async function invokeNativeNotification(title: string, body: string): Pro
   }
 }
 
-export async function invokeCheckGitHubUpdate(): Promise<UpdateCheckResult | null> {
-  if (!isTauriDesktop()) return null;
-  try {
-    return await tauriInvoke<UpdateCheckResult>('check_github_update_cmd');
-  } catch {
-    return null;
-  }
-}
+export const invokeCheckGitHubUpdate = () =>
+  tryInvoke<UpdateCheckResult>('check_github_update_cmd');
 
 export async function openExternalUrl(url: string): Promise<void> {
   if (isTauriDesktop()) {

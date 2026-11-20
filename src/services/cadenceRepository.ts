@@ -1,3 +1,4 @@
+import { invokeBuildSampleWorkspace } from '../utils/tauriBridge';
 import type { User } from 'firebase/auth';
 import {
   collection,
@@ -1822,6 +1823,58 @@ export async function seedSampleWorkspaceData(
   actorName: string,
 ): Promise<void> {
   requireUserId();
+  const rustBundle = await invokeBuildSampleWorkspace(actorUid, actorName);
+  if (rustBundle) {
+    const batch = writeBatch(db);
+    for (const member of rustBundle.roster) {
+      batch.set(doc(db, 'staffDirectory', member.uid), {
+        ...member,
+        updatedAt: serverTimestamp(),
+      });
+    }
+    for (const shift of rustBundle.shifts) {
+      batch.set(doc(db, 'shifts', shift.id), {
+        ...shift,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    }
+    for (const req of rustBundle.scheduleChanges) {
+      batch.set(doc(db, 'scheduleChanges', req.id), {
+        ...req,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    }
+    for (const rep of rustBundle.shiftReports) {
+      batch.set(doc(db, 'shiftReports', rep.id), {
+        ...rep,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    }
+    for (const sub of rustBundle.shiftSubmissions) {
+      batch.set(doc(db, 'shiftSubmissions', sub.id), {
+        ...sub,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    }
+    for (const to of rustBundle.timeOffRequests) {
+      batch.set(doc(db, 'timeOffRequests', to.id), {
+        ...to,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    }
+    try {
+      await batch.commit();
+      return;
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, 'staffDirectory');
+    }
+  }
+
   const day0 = getMondayIso();
   const day1 = addDaysIso(day0, 1);
   const day2 = addDaysIso(day0, 2);
