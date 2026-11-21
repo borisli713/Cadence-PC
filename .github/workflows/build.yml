@@ -139,12 +139,16 @@ jobs:
         env:
           CADENCE_GITHUB_REPO: ${{ github.repository }}
           VITE_GITHUB_REPO: ${{ github.repository }}
+          CADENCE_GOOGLE_DESKTOP_CLIENT_ID: ${{ secrets.CADENCE_GOOGLE_DESKTOP_CLIENT_ID }}
+          CADENCE_GOOGLE_DESKTOP_CLIENT_SECRET: ${{ secrets.CADENCE_GOOGLE_DESKTOP_CLIENT_SECRET }}
         run: cargo test --manifest-path src-tauri/Cargo.toml
 
       - name: Build Windows Tauri application & installers
         env:
           CADENCE_GITHUB_REPO: ${{ github.repository }}
           VITE_GITHUB_REPO: ${{ github.repository }}
+          CADENCE_GOOGLE_DESKTOP_CLIENT_ID: ${{ secrets.CADENCE_GOOGLE_DESKTOP_CLIENT_ID }}
+          CADENCE_GOOGLE_DESKTOP_CLIENT_SECRET: ${{ secrets.CADENCE_GOOGLE_DESKTOP_CLIENT_SECRET }}
         run: npx tauri build
 
       - name: Collect Windows release assets
