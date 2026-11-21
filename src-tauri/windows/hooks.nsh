@@ -51,10 +51,10 @@
 
   DetailPrint "Removing previous Cadence installation while keeping user data..."
   StrCmp $R2 "" __cadence_exec_no_dir_${TAG}
-    ExecWait '"$R0" /S _?=$R2'
+    ExecWait '"$R0" /S /UPDATE _?=$R2'
     Goto __cadence_after_exec_${TAG}
   __cadence_exec_no_dir_${TAG}:
-    ExecWait '"$R0" /S'
+    ExecWait '"$R0" /S /UPDATE'
   __cadence_after_exec_${TAG}:
 
   Delete "$R0"
