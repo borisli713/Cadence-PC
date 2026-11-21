@@ -1,7 +1,7 @@
 {
   "firestore": [
     {
-      "database": "ai-studio-cadencemobile-2447607c-553e-4472-86e4-0933bc8c3148",
+      "database": "ai-studio-2204fa2b-edd1-4012-9dfd-e10210864d68",
       "rules": "firestore.rules"
     }
   ],
