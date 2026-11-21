@@ -1,0 +1,147 @@
+{
+  "repository": "borisli713/Cadence-PC",
+  "generatedAt": "2026-11-21T14:42:08Z",
+  "latestVersion": "1.0.4",
+  "releases": [
+    {
+      "tagName": "windows-v1.0.4",
+      "version": "1.0.4",
+      "name": "Cadence Windows v1.0.4",
+      "publishedAt": "2026-11-21T14:42:08Z",
+      "body": "## Cadence Windows Desktop v1.0.4\r\n\r\n### Downloads\r\n- `Cadence-windows-v1.0.4-windows-x64-setup.exe` \u2014 Windows NSIS Installer\r\n- `Cadence-windows-v1.0.4-windows-x64.msi` \u2014 Windows MSI Package\r\n- `Cadence-windows-v1.0.4-windows-x64-portable.exe` \u2014 Portable Windows Executable\r\n\r\n### What's Changed\r\n\r\n- feat(auth): add Google OAuth client configuration\r\n\r\n**Full Changelog**: https://github.com/borisli713/Cadence-PC/compare/windows-v1.0.3...windows-v1.0.4\r\n",
+      "releasePageUrl": "https://github.com/borisli713/Cadence-PC/releases/tag/windows-v1.0.4",
+      "assets": [
+        {
+          "name": "Cadence-windows-v1.0.4-windows-x64-setup.exe",
+          "kind": "setup",
+          "label": "Windows Installer (.exe)",
+          "sizeBytes": 2913171,
+          "url": "https://github.com/borisli713/Cadence-PC/releases/download/windows-v1.0.4/Cadence-windows-v1.0.4-windows-x64-setup.exe",
+          "githubUrl": "https://github.com/borisli713/Cadence-PC/releases/download/windows-v1.0.4/Cadence-windows-v1.0.4-windows-x64-setup.exe"
+        },
+        {
+          "name": "Cadence-windows-v1.0.4-windows-x64.msi",
+          "kind": "msi",
+          "label": "MSI Package (.msi)",
+          "sizeBytes": 3887104,
+          "url": "https://github.com/borisli713/Cadence-PC/releases/download/windows-v1.0.4/Cadence-windows-v1.0.4-windows-x64.msi",
+          "githubUrl": "https://github.com/borisli713/Cadence-PC/releases/download/windows-v1.0.4/Cadence-windows-v1.0.4-windows-x64.msi"
+        },
+        {
+          "name": "Cadence-windows-v1.0.4-windows-x64-portable.exe",
+          "kind": "portable",
+          "label": "Portable App (.exe)",
+          "sizeBytes": 7335424,
+          "url": "https://github.com/borisli713/Cadence-PC/releases/download/windows-v1.0.4/Cadence-windows-v1.0.4-windows-x64-portable.exe",
+          "githubUrl": "https://github.com/borisli713/Cadence-PC/releases/download/windows-v1.0.4/Cadence-windows-v1.0.4-windows-x64-portable.exe"
+        }
+      ],
+      "isLatest": true
+    },
+    {
+      "tagName": "windows-v1.0.3",
+      "version": "1.0.3",
+      "name": "Cadence Windows v1.0.3",
+      "publishedAt": "2026-11-20T16:14:32Z",
+      "body": "## Cadence Windows Desktop v1.0.3\r\n\r\n### Downloads\r\n- `Cadence-windows-v1.0.3-windows-x64-setup.exe` \u2014 Windows NSIS Installer\r\n- `Cadence-windows-v1.0.3-windows-x64.msi` \u2014 Windows MSI Package\r\n- `Cadence-windows-v1.0.3-windows-x64-portable.exe` \u2014 Portable Windows Executable\r\n\r\n### What's Changed\r\n\r\n- refactor: make update repository configuration dynamic\r\n\r\n**Full Changelog**: https://github.com/borisli713/Cadence-PC/compare/windows-v1.0.2...windows-v1.0.3\r\n",
+      "releasePageUrl": "https://github.com/borisli713/Cadence-PC/releases/tag/windows-v1.0.3",
+      "assets": [
+        {
+          "name": "Cadence-windows-v1.0.3-windows-x64-setup.exe",
+          "kind": "setup",
+          "label": "Windows Installer (.exe)",
+          "sizeBytes": 2904889,
+          "url": "https://github.com/borisli713/Cadence-PC/releases/download/windows-v1.0.3/Cadence-windows-v1.0.3-windows-x64-setup.exe",
+          "githubUrl": "https://github.com/borisli713/Cadence-PC/releases/download/windows-v1.0.3/Cadence-windows-v1.0.3-windows-x64-setup.exe"
+        },
+        {
+          "name": "Cadence-windows-v1.0.3-windows-x64.msi",
+          "kind": "msi",
+          "label": "MSI Package (.msi)",
+          "sizeBytes": 3878912,
+          "url": "https://github.com/borisli713/Cadence-PC/releases/download/windows-v1.0.3/Cadence-windows-v1.0.3-windows-x64.msi",
+          "githubUrl": "https://github.com/borisli713/Cadence-PC/releases/download/windows-v1.0.3/Cadence-windows-v1.0.3-windows-x64.msi"
+        },
+        {
+          "name": "Cadence-windows-v1.0.3-windows-x64-portable.exe",
+          "kind": "portable",
+          "label": "Portable App (.exe)",
+          "sizeBytes": 7314944,
+          "url": "https://github.com/borisli713/Cadence-PC/releases/download/windows-v1.0.3/Cadence-windows-v1.0.3-windows-x64-portable.exe",
+          "githubUrl": "https://github.com/borisli713/Cadence-PC/releases/download/windows-v1.0.3/Cadence-windows-v1.0.3-windows-x64-portable.exe"
+        }
+      ],
+      "isLatest": false
+    },
+    {
+      "tagName": "windows-v1.0.2",
+      "version": "1.0.2",
+      "name": "Cadence Windows v1.0.2",
+      "publishedAt": "2026-11-20T15:48:29Z",
+      "body": "## Cadence Windows Desktop v1.0.2\r\n\r\n### Downloads\r\n- `Cadence-windows-v1.0.2-windows-x64-setup.exe` \u2014 Windows NSIS Installer\r\n- `Cadence-windows-v1.0.2-windows-x64.msi` \u2014 Windows MSI Package\r\n- `Cadence-windows-v1.0.2-windows-x64-portable.exe` \u2014 Portable Windows Executable\r\n\r\n### What's Changed\r\n\r\n- chore(ci): set latest release flag in build workflow\r\n- test: update integration test to support multi-shift resolution\r\n- refactor: implement equality traits and unify URL opening\r\n- feat(backend): implement core services and OAuth\r\n\r\n**Full Changelog**: https://github.com/borisli713/Cadence-PC/compare/v1.0.0...windows-v1.0.2\r\n",
+      "releasePageUrl": "https://github.com/borisli713/Cadence-PC/releases/tag/windows-v1.0.2",
+      "assets": [
+        {
+          "name": "Cadence-windows-v1.0.2-windows-x64-setup.exe",
+          "kind": "setup",
+          "label": "Windows Installer (.exe)",
+          "sizeBytes": 2845767,
+          "url": "https://github.com/borisli713/Cadence-PC/releases/download/windows-v1.0.2/Cadence-windows-v1.0.2-windows-x64-setup.exe",
+          "githubUrl": "https://github.com/borisli713/Cadence-PC/releases/download/windows-v1.0.2/Cadence-windows-v1.0.2-windows-x64-setup.exe"
+        },
+        {
+          "name": "Cadence-windows-v1.0.2-windows-x64.msi",
+          "kind": "msi",
+          "label": "MSI Package (.msi)",
+          "sizeBytes": 3817472,
+          "url": "https://github.com/borisli713/Cadence-PC/releases/download/windows-v1.0.2/Cadence-windows-v1.0.2-windows-x64.msi",
+          "githubUrl": "https://github.com/borisli713/Cadence-PC/releases/download/windows-v1.0.2/Cadence-windows-v1.0.2-windows-x64.msi"
+        },
+        {
+          "name": "Cadence-windows-v1.0.2-windows-x64-portable.exe",
+          "kind": "portable",
+          "label": "Portable App (.exe)",
+          "sizeBytes": 7257088,
+          "url": "https://github.com/borisli713/Cadence-PC/releases/download/windows-v1.0.2/Cadence-windows-v1.0.2-windows-x64-portable.exe",
+          "githubUrl": "https://github.com/borisli713/Cadence-PC/releases/download/windows-v1.0.2/Cadence-windows-v1.0.2-windows-x64-portable.exe"
+        }
+      ],
+      "isLatest": false
+    },
+    {
+      "tagName": "windows-v1.0.1",
+      "version": "1.0.1",
+      "name": "Cadence Windows v1.0.1",
+      "publishedAt": "2026-11-20T15:30:16Z",
+      "body": "## Cadence Windows Desktop v1.0.1\r\n\r\n### Downloads\r\n- `Cadence-windows-v1.0.1-windows-x64-setup.exe` \u2014 Windows NSIS Installer\r\n- `Cadence-windows-v1.0.1-windows-x64.msi` \u2014 Windows MSI Package\r\n- `Cadence-windows-v1.0.1-windows-x64-portable.exe` \u2014 Portable Windows Executable\r\n\r\n### What's Changed\r\n\r\n- test: update integration test to support multi-shift resolution\r\n- refactor: implement equality traits and unify URL opening\r\n- feat(backend): implement core services and OAuth\r\n\r\n**Full Changelog**: https://github.com/borisli713/Cadence-PC/compare/v1.0.0...windows-v1.0.1\r\n",
+      "releasePageUrl": "https://github.com/borisli713/Cadence-PC/releases/tag/windows-v1.0.1",
+      "assets": [
+        {
+          "name": "Cadence-windows-v1.0.1-windows-x64-setup.exe",
+          "kind": "setup",
+          "label": "Windows Installer (.exe)",
+          "sizeBytes": 2846443,
+          "url": "https://github.com/borisli713/Cadence-PC/releases/download/windows-v1.0.1/Cadence-windows-v1.0.1-windows-x64-setup.exe",
+          "githubUrl": "https://github.com/borisli713/Cadence-PC/releases/download/windows-v1.0.1/Cadence-windows-v1.0.1-windows-x64-setup.exe"
+        },
+        {
+          "name": "Cadence-windows-v1.0.1-windows-x64.msi",
+          "kind": "msi",
+          "label": "MSI Package (.msi)",
+          "sizeBytes": 3817472,
+          "url": "https://github.com/borisli713/Cadence-PC/releases/download/windows-v1.0.1/Cadence-windows-v1.0.1-windows-x64.msi",
+          "githubUrl": "https://github.com/borisli713/Cadence-PC/releases/download/windows-v1.0.1/Cadence-windows-v1.0.1-windows-x64.msi"
+        },
+        {
+          "name": "Cadence-windows-v1.0.1-windows-x64-portable.exe",
+          "kind": "portable",
+          "label": "Portable App (.exe)",
+          "sizeBytes": 7257088,
+          "url": "https://github.com/borisli713/Cadence-PC/releases/download/windows-v1.0.1/Cadence-windows-v1.0.1-windows-x64-portable.exe",
+          "githubUrl": "https://github.com/borisli713/Cadence-PC/releases/download/windows-v1.0.1/Cadence-windows-v1.0.1-windows-x64-portable.exe"
+        }
+      ],
+      "isLatest": false
+    }
+  ]
+}

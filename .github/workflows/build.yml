@@ -8,6 +8,8 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 concurrency:
   group: "cadence-windows-release"
@@ -16,6 +18,9 @@ concurrency:
 jobs:
   build-and-release:
     runs-on: windows-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag_name: ${{ steps.version.outputs.tag_name }}
 
     steps:
       - name: Checkout repository
@@ -276,3 +281,225 @@ jobs:
           draft: false
           prerelease: false
           make_latest: true
+
+      - name: Upload Windows release bundle for GitHub Pages
+        uses: actions/upload-artifact@v4
+        with:
+          name: cadence-windows-assets
+          path: |
+            release-assets/*
+            release_notes.md
+          retention-days: 1
+
+  deploy-pages:
+    needs: build-and-release
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download built Windows release assets
+        uses: actions/download-artifact@v4
+        with:
+          name: cadence-windows-assets
+          path: current-release-assets
+
+      - name: Stage GitHub Pages site, installers, and releases manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO_FULL: ${{ github.repository }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+          CURRENT_TAG: ${{ needs.build-and-release.outputs.tag_name }}
+          CURRENT_VERSION: ${{ needs.build-and-release.outputs.version }}
+        run: |
+          python3 - <<'PY'
+          import datetime
+          import json
+          import os
+          import re
+          import shutil
+          import urllib.request
+
+          repo = os.environ["REPO_FULL"]
+          repo_url = os.environ["REPO_URL"]
+          token = os.environ.get("GH_TOKEN", "")
+          current_tag = os.environ["CURRENT_TAG"]
+          current_ver = os.environ["CURRENT_VERSION"]
+
+          site_dir = "_site"
+          if os.path.exists(site_dir):
+              shutil.rmtree(site_dir)
+          shutil.copytree("docs", site_dir)
+
+          downloads_root = os.path.join(site_dir, "downloads")
+          os.makedirs(downloads_root, exist_ok=True)
+
+          def parse_ver(tag):
+              m = re.match(r"^(?:windows-v?|win-v?|v)?(\d+)\.(\d+)\.(\d+)$", (tag or "").strip(), re.I)
+              return tuple(int(x) for x in m.groups()) if m else (0, 0, 0)
+
+          def classify_asset(name):
+              low = name.lower()
+              if low.endswith("-setup.exe"):
+                  return ("setup", "Windows Installer (.exe)")
+              if low.endswith(".msi"):
+                  return ("msi", "MSI Package (.msi)")
+              if low.endswith("-portable.exe"):
+                  return ("portable", "Portable App (.exe)")
+              if low.endswith(".exe"):
+                  return ("exe", "Windows Executable (.exe)")
+              return ("other", name)
+
+          def download_file(url, dest_path):
+              req = urllib.request.Request(
+                  url,
+                  headers={
+                      "Authorization": f"Bearer {token}",
+                      "User-Agent": "cadence-pages-packager",
+                  },
+              )
+              with urllib.request.urlopen(req, timeout=60) as resp, open(dest_path, "wb") as out:
+                  shutil.copyfileobj(resp, out)
+
+          # 1. Fetch existing published Windows releases from GitHub API
+          api_releases = []
+          try:
+              req = urllib.request.Request(
+                  f"https://api.github.com/repos/{repo}/releases?per_page=50",
+                  headers={
+                      "Accept": "application/vnd.github+json",
+                      "Authorization": f"Bearer {token}",
+                      "User-Agent": "cadence-pages-packager",
+                  },
+              )
+              with urllib.request.urlopen(req, timeout=20) as resp:
+                  api_releases = json.loads(resp.read().decode("utf-8"))
+          except Exception as exc:
+              print(f"Warning fetching releases API: {exc}")
+
+          releases_by_tag = {}
+          for rel in api_releases:
+              if rel.get("draft") or rel.get("prerelease"):
+                  continue
+              tag = (rel.get("tag_name") or "").strip()
+              assets = []
+              for a in rel.get("assets") or []:
+                  name = a.get("name") or ""
+                  if not name.lower().endswith((".exe", ".msi")):
+                      continue
+                  kind, label = classify_asset(name)
+                  assets.append({
+                      "name": name,
+                      "kind": kind,
+                      "label": label,
+                      "sizeBytes": a.get("size", 0),
+                      "url": a.get("browser_download_url"),
+                      "githubUrl": a.get("browser_download_url"),
+                  })
+              if not assets:
+                  continue
+              ver_tuple = parse_ver(tag)
+              ver_str = ".".join(str(x) for x in ver_tuple) if ver_tuple != (0, 0, 0) else tag
+              releases_by_tag[tag] = {
+                  "tagName": tag,
+                  "version": ver_str,
+                  "name": rel.get("name") or f"Cadence Windows v{ver_str}",
+                  "publishedAt": rel.get("published_at") or "",
+                  "body": rel.get("body") or "",
+                  "releasePageUrl": rel.get("html_url") or f"{repo_url}/releases/tag/{tag}",
+                  "assets": assets,
+              }
+
+          # 2. Ensure the just-built release is authoritative using uploaded artifacts
+          notes_path = os.path.join("current-release-assets", "release_notes.md")
+          current_notes = ""
+          if os.path.exists(notes_path):
+              with open(notes_path, "r", encoding="utf-8") as nf:
+                  current_notes = nf.read()
+
+          current_tag_dir = os.path.join(downloads_root, current_tag)
+          os.makedirs(current_tag_dir, exist_ok=True)
+          current_assets = []
+          for entry in sorted(os.listdir("current-release-assets")):
+              if not entry.lower().endswith((".exe", ".msi")):
+                  continue
+              src_path = os.path.join("current-release-assets", entry)
+              dest_path = os.path.join(current_tag_dir, entry)
+              shutil.copy2(src_path, dest_path)
+              kind, label = classify_asset(entry)
+              gh_url = f"{repo_url}/releases/download/{current_tag}/{entry}"
+              current_assets.append({
+                  "name": entry,
+                  "kind": kind,
+                  "label": label,
+                  "sizeBytes": os.path.getsize(dest_path),
+                  "url": f"./downloads/{current_tag}/{entry}",
+                  "githubUrl": gh_url,
+              })
+
+          now_iso = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+          if current_assets:
+              existing_cur = releases_by_tag.get(current_tag, {})
+              releases_by_tag[current_tag] = {
+                  "tagName": current_tag,
+                  "version": current_ver,
+                  "name": f"Cadence Windows v{current_ver}",
+                  "publishedAt": existing_cur.get("publishedAt") or now_iso,
+                  "body": current_notes or existing_cur.get("body") or "",
+                  "releasePageUrl": f"{repo_url}/releases/tag/{current_tag}",
+                  "assets": current_assets,
+              }
+
+          # 3. Order newest first and mirror past installers onto GitHub Pages within 650 MB budget
+          ordered = sorted(releases_by_tag.values(), key=lambda r: parse_ver(r["tagName"]), reverse=True)
+          kind_order = {"setup": 0, "msi": 1, "portable": 2, "exe": 3, "other": 4}
+          total_hosted_bytes = sum(a.get("sizeBytes", 0) for a in current_assets)
+          max_hosted_bytes = 650 * 1024 * 1024
+
+          for idx, rel in enumerate(ordered):
+              rel["isLatest"] = (idx == 0)
+              tag = rel["tagName"]
+              tag_dir = os.path.join(downloads_root, tag)
+              if tag != current_tag:
+                  os.makedirs(tag_dir, exist_ok=True)
+                  for asset in rel["assets"]:
+                      size = asset.get("sizeBytes", 0)
+                      dest_path = os.path.join(tag_dir, asset["name"])
+                      if total_hosted_bytes + size <= max_hosted_bytes and asset.get("githubUrl"):
+                          try:
+                              download_file(asset["githubUrl"], dest_path)
+                              total_hosted_bytes += os.path.getsize(dest_path)
+                              asset["url"] = f"./downloads/{tag}/{asset['name']}"
+                          except Exception as exc:
+                              print(f"Mirror fallback to GitHub URL for {tag}/{asset['name']}: {exc}")
+              rel["assets"].sort(key=lambda a: kind_order.get(a.get("kind"), 9))
+
+          manifest = {
+              "repository": repo,
+              "generatedAt": now_iso,
+              "latestVersion": ordered[0]["version"] if ordered else current_ver,
+              "releases": ordered,
+          }
+          with open(os.path.join(site_dir, "releases.json"), "w", encoding="utf-8") as mf:
+              json.dump(manifest, mf, indent=2)
+              mf.write("\n")
+
+          print(f"Staged {len(ordered)} releases into {site_dir}; hosted binaries={total_hosted_bytes / (1024 * 1024):.1f} MB")
+          PY
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
