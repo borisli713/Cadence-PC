@@ -39,8 +39,20 @@
     "windows": {
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",
+      "allowDowngrades": true,
       "nsis": {
-        "installMode": "currentUser"
+        "installMode": "currentUser",
+        "headerImage": "windows/nsis-header.bmp",
+        "uninstallerHeaderImage": "windows/nsis-header.bmp",
+        "sidebarImage": "windows/nsis-sidebar.bmp",
+        "installerIcon": "icons/icon.ico",
+        "uninstallerIcon": "icons/icon.ico",
+        "installerHooks": "windows/hooks.nsh"
+      },
+      "wix": {
+        "upgradeCode": "4311d0a4-d8fc-5c86-a5a3-9d72fc38e1d8",
+        "bannerPath": "windows/wix-banner.bmp",
+        "dialogImagePath": "windows/wix-dialog.bmp"
       }
     }
   }
