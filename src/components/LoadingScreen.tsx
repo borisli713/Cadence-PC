@@ -50,12 +50,12 @@ export function LoadingScreen({
 
   return (
     <div
-      className="min-h-screen w-full cadence-launch-surface flex flex-col items-center justify-center px-6 py-10"
+      className="min-h-dvh w-full cadence-launch-surface flex flex-col items-center px-4 py-6 sm:px-6 sm:py-10 overflow-y-auto cadence-scroll"
       role="status"
       aria-live="polite"
       aria-label={heading}
     >
-      <div className="w-full max-w-md space-y-6">
+      <div className="w-full max-w-md space-y-6 my-auto">
         <div className="flex items-center gap-3.5">
           {iconError ? (
             <div className="w-11 h-11 rounded-xl border border-slate-200 bg-white shadow-xs flex items-center justify-center text-blue-600 shrink-0">

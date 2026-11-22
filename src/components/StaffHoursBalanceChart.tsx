@@ -76,7 +76,7 @@ export function StaffHoursBalanceChart({
     ...rows.map((r) => Math.max(r.combined, r.target) * 1.1),
   );
 
-  const barWidth = 420;
+  const barWidth = 640;
   const barHeight = 14;
 
   return (
@@ -88,7 +88,7 @@ export function StaffHoursBalanceChart({
             Sorted from lowest utilization ratio upward to prioritize under-allocated teammates
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-4 text-xs text-slate-600">
+        <div className="flex flex-wrap items-center gap-3 @xl:gap-4 text-xs text-slate-600">
           <span className="inline-flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-xs bg-emerald-600 inline-block" />
             Verified Logged
@@ -123,9 +123,9 @@ export function StaffHoursBalanceChart({
           return (
             <div
               key={row.uid}
-              className="grid grid-cols-1 sm:grid-cols-[180px_1fr_140px] items-center gap-2 sm:gap-4"
+              className="grid grid-cols-1 @xl:grid-cols-[164px_1fr_138px] @4xl:grid-cols-[190px_1fr_150px] items-stretch @xl:items-center gap-1.5 @xl:gap-4"
             >
-              <div className="min-w-0">
+              <div className="flex items-baseline justify-between gap-2 @xl:block min-w-0">
                 <div className="text-xs font-semibold text-slate-900 truncate">
                   {row.name}
                 </div>
@@ -136,6 +136,7 @@ export function StaffHoursBalanceChart({
 
               <svg
                 viewBox={`0 0 ${barWidth} 20`}
+                preserveAspectRatio="xMinYMid meet"
                 className="w-full h-5 overflow-visible"
                 role="img"
                 aria-label={`${row.name}: ${formatHours(row.logged)}h logged, ${formatHours(row.scheduled)}h scheduled vs ${row.target}h target`}
@@ -178,7 +179,7 @@ export function StaffHoursBalanceChart({
                 />
               </svg>
 
-              <div className="flex items-center justify-between sm:justify-end gap-2 text-xs font-mono-tabular text-slate-700">
+              <div className="flex items-center justify-between @xl:justify-end gap-2 text-xs font-mono-tabular text-slate-700">
                 <span>
                   {formatHours(row.logged)}+{formatHours(row.scheduled)}/{row.target}h
                 </span>

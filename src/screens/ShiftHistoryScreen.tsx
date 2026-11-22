@@ -82,15 +82,15 @@ export function ShiftHistoryScreen({ data }: ShiftHistoryScreenProps) {
   }, [rustHistory, resolvedRequests, filter, searchQuery]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 @xl:space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Shift History</h1>
-        <p className="text-sm text-slate-500 mt-1">
+        <h1 className="text-xl @xl:text-2xl font-bold text-slate-900">Shift History</h1>
+        <p className="text-xs @xl:text-sm text-slate-500 mt-1">
           Audit archive of approved and rejected schedule changes, timestamps, and reviewer notes
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 @sm:grid-cols-2 gap-3 @xl:gap-4">
         <KpiTile
           label="Approved Changes"
           value={approvedCount}
@@ -107,8 +107,8 @@ export function ShiftHistoryScreen({ data }: ShiftHistoryScreenProps) {
         />
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="inline-flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-1">
+      <div className="flex flex-col @2xl:flex-row @2xl:items-center @2xl:justify-between gap-3">
+        <div className="inline-flex items-center gap-1 max-w-full overflow-x-auto cadence-scroll bg-white border border-slate-200 rounded-lg p-1">
           {(
             [
               ['all', `All (${totalResolvedCount})`],
@@ -131,7 +131,7 @@ export function ShiftHistoryScreen({ data }: ShiftHistoryScreenProps) {
           ))}
         </div>
 
-        <div className="relative w-full sm:w-64">
+        <div className="relative w-full @2xl:w-64 shrink-0">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
@@ -150,7 +150,7 @@ export function ShiftHistoryScreen({ data }: ShiftHistoryScreenProps) {
           subtitle="Once managers approve or deny pending change requests, the full audit log appears here."
         />
       ) : (
-        <div className="space-y-3">
+        <div className="grid grid-cols-1 @5xl:grid-cols-2 gap-3.5">
           {filteredList.map((item) => (
             <SurfaceCard key={item.id} className="space-y-3">
               <div className="flex flex-wrap items-start justify-between gap-3">

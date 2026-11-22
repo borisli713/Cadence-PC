@@ -92,18 +92,18 @@ export function ManagerApprovalsScreen({
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">
+    <div className="space-y-5 @xl:space-y-6">
+      <div className="flex flex-col @3xl:flex-row @3xl:items-start @3xl:justify-between gap-3 @xl:gap-4">
+        <div className="min-w-0">
+          <h1 className="text-xl @xl:text-2xl font-bold text-slate-900">
             Schedule Change Approvals
           </h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-xs @xl:text-sm text-slate-500 mt-1">
             Review time adjustments, swaps, drops, and open shift claims
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           {isManager && pendingList.length > 0 && (
             <button
               type="button"
@@ -141,7 +141,7 @@ export function ManagerApprovalsScreen({
       </div>
 
       {/* Filter Tabs */}
-      <div className="inline-flex flex-wrap items-center gap-1 bg-white border border-slate-200 rounded-lg p-1">
+      <div className="inline-flex items-center gap-1 max-w-full overflow-x-auto cadence-scroll bg-white border border-slate-200 rounded-lg p-1">
         {(
           [
             ['pending', `Pending (${pendingList.length})`],
@@ -172,7 +172,7 @@ export function ManagerApprovalsScreen({
           subtitle="Schedule change requests submitted by staff will appear here for review."
         />
       ) : (
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 @5xl:grid-cols-2 gap-4">
           {filteredList.map((req) => (
             <SurfaceCard key={req.id} className="space-y-3">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -228,7 +228,7 @@ export function ManagerApprovalsScreen({
               )}
 
               {req.status === ApprovalStatus.PENDING && isManager ? (
-                <div className="flex flex-wrap items-center gap-2.5 pt-2 border-t border-slate-100">
+                <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
                   <input
                     type="text"
                     value={notesByReqId[req.id] ?? ''}
@@ -240,7 +240,7 @@ export function ManagerApprovalsScreen({
                     }
                     placeholder="Optional review note..."
                     maxLength={300}
-                    className="flex-1 min-w-52 px-3 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-900"
+                    className="w-full @lg:flex-1 @lg:min-w-48 px-3 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-900"
                   />
                   <button
                     type="button"

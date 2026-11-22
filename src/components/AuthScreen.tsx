@@ -173,8 +173,8 @@ export function AuthScreen({ pendingUser, onVerifiedSuccess }: AuthScreenProps) 
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center p-6">
-      <div className="w-full max-w-md space-y-5">
+    <div className="min-h-dvh bg-slate-50 flex flex-col items-center px-4 py-6 sm:p-6 overflow-y-auto cadence-scroll">
+      <div className="w-full max-w-md space-y-5 my-auto">
         <div className="flex items-center gap-3">
           <img
             src="/cadence-icon.png"

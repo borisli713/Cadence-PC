@@ -109,13 +109,13 @@ export function TimeOffRequestsScreen({
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">
+    <div className="space-y-5 @xl:space-y-6">
+      <div className="flex flex-col @3xl:flex-row @3xl:items-start @3xl:justify-between gap-3 @xl:gap-4">
+        <div className="min-w-0">
+          <h1 className="text-xl @xl:text-2xl font-bold text-slate-900">
             Time Off Requests
           </h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-xs @xl:text-sm text-slate-500 mt-1">
             Approved dates automatically protect staff from fairness shift assignments
           </p>
         </div>
@@ -129,14 +129,14 @@ export function TimeOffRequestsScreen({
             setErrorMsg(null);
             setModalOpen(true);
           }}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0 self-start"
         >
           <Plus className="w-4 h-4" />
           <span>Request Time Off</span>
         </button>
       </div>
 
-      <div className="inline-flex flex-wrap items-center gap-1 bg-white border border-slate-200 rounded-lg p-1">
+      <div className="inline-flex items-center gap-1 max-w-full overflow-x-auto cadence-scroll bg-white border border-slate-200 rounded-lg p-1">
         {(
           [
             ['pending', `Pending (${pendingCount})`],
@@ -167,7 +167,7 @@ export function TimeOffRequestsScreen({
           subtitle="Submit a new time off request when you need protected dates."
         />
       ) : (
-        <div className="space-y-3">
+        <div className="grid grid-cols-1 @5xl:grid-cols-2 gap-3.5">
           {filteredRequests.map((req) => {
             const days = countDaysInclusive(req.startDate, req.endDate);
             const isOwner = req.staffUid === data.profile.uid;
@@ -208,7 +208,7 @@ export function TimeOffRequestsScreen({
                         }
                         placeholder="Optional review note..."
                         maxLength={300}
-                        className="flex-1 min-w-48 px-3 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-900"
+                        className="w-full @lg:flex-1 @lg:min-w-44 px-3 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-900"
                       />
                       <button
                         type="button"

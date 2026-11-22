@@ -12,6 +12,8 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
   Settings,
   Sparkles,
   Users,
@@ -80,6 +82,25 @@ export function App() {
 
   const [activeTab, setActiveTab] = useState<CadenceTab>(CadenceTab.OVERVIEW);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('cadence_sidebar_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleSidebarCollapsed = () => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('cadence_sidebar_collapsed', String(next));
+      } catch {
+        // ignore storage errors
+      }
+      return next;
+    });
+  };
 
   // Dialog & modal triggers shared across screens
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -236,119 +257,184 @@ export function App() {
     setActiveTab(CadenceTab.REPORTS);
   };
 
-  const sidebarContent = (
-    <div className="flex flex-col h-full bg-white border-r border-slate-200">
-      <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2.5 min-w-0">
+  const renderSidebar = (compact: boolean, inDrawer = false) => (
+    <div className="flex flex-col h-full bg-white border-r border-slate-200 select-none">
+      <div
+        className={`${
+          compact ? 'px-2.5 py-3.5 justify-center' : 'px-4 py-3.5 justify-between'
+        } border-b border-slate-200 flex items-center gap-2 shrink-0`}
+      >
+        <div className={`flex items-center ${compact ? '' : 'gap-2.5 min-w-0'}`}>
           <img
             src="/cadence-icon.png"
             alt="Cadence logo"
             className="w-8 h-8 rounded-lg border border-slate-200 object-cover shrink-0"
           />
-          <div className="min-w-0">
-            <div className="text-sm font-bold text-slate-900 truncate">
-              Cadence
+          {!compact && (
+            <div className="min-w-0">
+              <div className="text-sm font-bold text-slate-900 truncate">
+                Cadence
+              </div>
+              <div className="text-[11px] font-mono-tabular text-slate-500">
+                v{appVersion} · Windows
+              </div>
             </div>
-            <div className="text-[11px] font-mono-tabular text-slate-500">
-              v{appVersion} · Windows
-            </div>
-          </div>
+          )}
         </div>
-        <button
-          type="button"
-          onClick={() => setMobileNavOpen(false)}
-          className="lg:hidden p-1.5 rounded-lg text-slate-400 hover:text-slate-700 cursor-pointer"
-          aria-label="Close navigation"
-        >
-          <X className="w-4 h-4" />
-        </button>
+
+        {inDrawer ? (
+          <button
+            type="button"
+            onClick={() => setMobileNavOpen(false)}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+            aria-label="Close navigation"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        ) : (
+          !compact && (
+            <button
+              type="button"
+              onClick={toggleSidebarCollapsed}
+              title="Collapse sidebar for more workspace width"
+              aria-label="Collapse sidebar"
+              className="hidden lg:inline-flex p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
+            >
+              <PanelLeftClose className="w-4 h-4" />
+            </button>
+          )
+        )}
       </div>
 
-      <nav className="flex-1 overflow-y-auto p-3 space-y-1">
+      {compact && !inDrawer && (
+        <div className="hidden lg:flex justify-center pt-2.5 px-2 shrink-0">
+          <button
+            type="button"
+            onClick={toggleSidebarCollapsed}
+            title="Expand sidebar"
+            aria-label="Expand sidebar"
+            className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+          >
+            <PanelLeftOpen className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      <nav className="flex-1 min-h-0 overflow-y-auto cadence-scroll p-2.5 space-y-1">
         {navItems.map((item) => {
           const active = activeTab === item.id;
           return (
             <button
               key={item.id}
               type="button"
+              title={compact ? item.label : undefined}
+              aria-label={compact ? item.label : undefined}
               onClick={() => {
                 setActiveTab(item.id);
                 setMobileNavOpen(false);
               }}
-              className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+              className={`relative w-full flex items-center ${
+                compact ? 'justify-center px-2 py-2.5' : 'justify-between gap-2 px-3 py-2'
+              } rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
                 active
                   ? 'bg-blue-50 text-blue-700 border border-blue-200'
                   : 'text-slate-700 hover:bg-slate-100 border border-transparent'
               }`}
             >
-              <span className="flex items-center gap-2.5 min-w-0">
+              <span
+                className={`flex items-center ${
+                  compact ? 'justify-center' : 'gap-2.5 min-w-0'
+                }`}
+              >
                 {item.icon}
-                <span className="truncate">{item.label}</span>
+                {!compact && <span className="truncate">{item.label}</span>}
               </span>
-              {item.badge !== undefined && (
-                <span
-                  className={`font-mono-tabular text-[11px] px-1.5 py-0.5 rounded-md ${
-                    active
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-slate-200 text-slate-700'
-                  }`}
-                >
-                  {item.badge}
-                </span>
-              )}
+              {item.badge !== undefined &&
+                (compact ? (
+                  <span className="absolute top-1 right-1 min-w-4 h-4 px-1 rounded-full bg-blue-600 text-white font-mono-tabular text-[10px] leading-4 text-center">
+                    {item.badge > 99 ? '99+' : item.badge}
+                  </span>
+                ) : (
+                  <span
+                    className={`font-mono-tabular text-[11px] px-1.5 py-0.5 rounded-md ${
+                      active
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-slate-200 text-slate-700'
+                    }`}
+                  >
+                    {item.badge}
+                  </span>
+                ))}
             </button>
           );
         })}
       </nav>
 
-      <div className="p-3 border-t border-slate-200 space-y-2.5">
-        {updateResult?.updateAvailable && (
-          <button
-            type="button"
-            onClick={() => setUpdateDialogOpen(true)}
-            className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold cursor-pointer hover:bg-emerald-100"
-          >
-            <span className="flex items-center gap-1.5 truncate">
-              <Download className="w-3.5 h-3.5 shrink-0" />
-              <span className="truncate">
-                Update v{updateResult.latest.versionName}
+      <div className="p-2.5 border-t border-slate-200 space-y-2 shrink-0">
+        {updateResult?.updateAvailable &&
+          (compact ? (
+            <button
+              type="button"
+              onClick={() => setUpdateDialogOpen(true)}
+              title={`Update v${updateResult.latest.versionName}`}
+              aria-label={`Update v${updateResult.latest.versionName}`}
+              className="w-full flex items-center justify-center p-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 cursor-pointer"
+            >
+              <Download className="w-4 h-4" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setUpdateDialogOpen(true)}
+              className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold cursor-pointer hover:bg-emerald-100"
+            >
+              <span className="flex items-center gap-1.5 truncate">
+                <Download className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">
+                  Update v{updateResult.latest.versionName}
+                </span>
               </span>
-            </span>
-            <span>View</span>
-          </button>
+              <span>View</span>
+            </button>
+          ))}
+
+        {!compact && (
+          <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-xs font-bold text-slate-900 truncate">
+                {data.profile.displayName}
+              </div>
+              <StatusChip
+                label={isManager ? 'Manager' : 'Staff'}
+                tone={isManager ? 'violet' : 'neutral'}
+              />
+            </div>
+            <div className="text-[11px] text-slate-500 truncate mt-0.5">
+              {data.profile.department}
+            </div>
+          </div>
         )}
 
-        <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
-          <div className="flex items-center justify-between gap-2">
-            <div className="text-xs font-bold text-slate-900 truncate">
-              {data.profile.displayName}
-            </div>
-            <StatusChip
-              label={isManager ? 'Manager' : 'Staff'}
-              tone={isManager ? 'violet' : 'neutral'}
-            />
-          </div>
-          <div className="text-[11px] text-slate-500 truncate mt-0.5">
-            {data.profile.department}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2">
+        <div className={compact ? 'space-y-1.5' : 'grid grid-cols-2 gap-2'}>
           <button
             type="button"
             onClick={() => setSettingsOpen(true)}
-            className="inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer"
+            title={compact ? 'Settings' : undefined}
+            aria-label="Settings"
+            className="w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer"
           >
-            <Settings className="w-3.5 h-3.5" />
-            <span>Settings</span>
+            <Settings className="w-3.5 h-3.5 shrink-0" />
+            {!compact && <span>Settings</span>}
           </button>
           <button
             type="button"
             onClick={() => actions.signOut()}
-            className="inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-rose-50 hover:text-rose-700 text-xs font-semibold text-slate-700 cursor-pointer"
+            title={compact ? 'Sign Out' : undefined}
+            aria-label="Sign Out"
+            className="w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-rose-50 hover:text-rose-700 text-xs font-semibold text-slate-700 cursor-pointer"
           >
-            <LogOut className="w-3.5 h-3.5" />
-            <span>Sign Out</span>
+            <LogOut className="w-3.5 h-3.5 shrink-0" />
+            {!compact && <span>Sign Out</span>}
           </button>
         </div>
       </div>
@@ -356,35 +442,44 @@ export function App() {
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
-      {/* Desktop Sidebar */}
-      <aside className="hidden lg:block w-64 shrink-0 sticky top-0 h-screen">
-        {sidebarContent}
+    <div className="min-h-dvh bg-slate-50 flex">
+      {/* Medium Windowed Rail (768px–1023px) */}
+      <aside className="hidden md:block lg:hidden w-[68px] shrink-0 sticky top-0 h-dvh">
+        {renderSidebar(true)}
       </aside>
 
-      {/* Mobile Drawer */}
+      {/* Desktop Sidebar (>= 1024px, collapsible) */}
+      <aside
+        className={`hidden lg:block shrink-0 sticky top-0 h-dvh transition-[width] duration-150 ease-out ${
+          sidebarCollapsed ? 'w-[68px]' : 'w-60 xl:w-64'
+        }`}
+      >
+        {renderSidebar(sidebarCollapsed)}
+      </aside>
+
+      {/* Narrow Window / Mobile Slide-Over Drawer (< 768px) */}
       {mobileNavOpen && (
         <div
-          className="fixed inset-0 z-40 lg:hidden flex"
+          className="fixed inset-0 z-40 md:hidden flex"
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) setMobileNavOpen(false);
           }}
         >
           <div className="fixed inset-0 bg-slate-900/40" />
-          <div className="relative z-10 w-64 max-w-[80vw] h-full">
-            {sidebarContent}
+          <div className="relative z-10 w-64 max-w-[82vw] h-full">
+            {renderSidebar(false, true)}
           </div>
         </div>
       )}
 
       {/* Main Content Area */}
       <div className="flex-1 min-w-0 flex flex-col">
-        {/* Mobile Header */}
-        <header className="lg:hidden sticky top-0 z-30 bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between gap-3">
+        {/* Compact Header (< 768px) */}
+        <header className="md:hidden sticky top-0 z-30 bg-white border-b border-slate-200 px-3.5 py-2.5 flex items-center justify-between gap-2.5">
           <button
             type="button"
             onClick={() => setMobileNavOpen(true)}
-            className="p-1.5 rounded-lg border border-slate-200 text-slate-700 cursor-pointer"
+            className="p-1.5 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 cursor-pointer shrink-0"
             aria-label="Open navigation"
           >
             <Menu className="w-4 h-4" />
@@ -398,14 +493,14 @@ export function App() {
           <button
             type="button"
             onClick={() => setSettingsOpen(true)}
-            className="p-1.5 rounded-lg border border-slate-200 text-slate-700 cursor-pointer"
+            className="p-1.5 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 cursor-pointer shrink-0"
             aria-label="Open settings"
           >
             <Settings className="w-4 h-4" />
           </button>
         </header>
 
-        <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-5">
+        <main className="flex-1 min-w-0 @container w-full max-w-[1600px] mx-auto px-3.5 sm:px-5 lg:px-7 py-4 sm:py-6 space-y-5">
           {data.streamError && (
             <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" />

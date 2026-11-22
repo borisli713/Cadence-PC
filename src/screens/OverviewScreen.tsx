@@ -106,13 +106,13 @@ export function OverviewScreen({
     activeKpis?.myVerifiedHours ?? currentStaffEntry?.totalHoursWorked ?? 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 @xl:space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">
+        <div className="min-w-0">
+          <h1 className="text-xl @xl:text-2xl font-bold text-slate-900">
             Welcome back, {profile.displayName}
           </h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-xs @xl:text-sm text-slate-500 mt-1">
             {profile.department} ·{' '}
             {isManager ? 'Manager Console' : 'Staff Workspace'} ·{' '}
             Target {profile.weeklyHoursTarget}h/week
@@ -194,7 +194,7 @@ export function OverviewScreen({
       </SurfaceCard>
 
       {/* KPI Tiles */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 @sm:grid-cols-2 @4xl:grid-cols-4 gap-3 @xl:gap-4">
         <KpiTile
           label="My Shifts"
           value={myShiftsCount}
@@ -234,7 +234,7 @@ export function OverviewScreen({
       </div>
 
       {/* Main Preview Columns */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 @3xl:grid-cols-2 gap-4 @xl:gap-5">
         {/* My Assigned Shifts Preview */}
         <SurfaceCard className="space-y-4">
           <div className="flex items-center justify-between gap-2">

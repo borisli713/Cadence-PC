@@ -235,18 +235,18 @@ export function ScheduleFairnessScreen({
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">
+    <div className="space-y-5 @xl:space-y-6">
+      <div className="flex flex-col @3xl:flex-row @3xl:items-start @3xl:justify-between gap-3 @xl:gap-4">
+        <div className="min-w-0">
+          <h1 className="text-xl @xl:text-2xl font-bold text-slate-900">
             Schedule &amp; Fairness
           </h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-xs @xl:text-sm text-slate-500 mt-1">
             Team calendar, staff availability submissions, and Rust-powered fairness overlap allocation
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={onOpenSubmitAvailability}
@@ -346,7 +346,7 @@ export function ScheduleFairnessScreen({
 
       {/* Sub-Tabs */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="inline-flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-1">
+        <div className="inline-flex items-center gap-1 max-w-full overflow-x-auto cadence-scroll bg-white border border-slate-200 rounded-lg p-1">
           {(
             [
               ['calendar', 'Calendar'],
@@ -370,7 +370,7 @@ export function ScheduleFairnessScreen({
         </div>
 
         {subTab === 'calendar' && (
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2">
             <label className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 cursor-pointer">
               <input
                 type="checkbox"
@@ -437,7 +437,7 @@ export function ScheduleFairnessScreen({
 
       {/* Calendar View */}
       {subTab === 'calendar' && calendarMode === 'week' && (
-        <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
+        <div className="grid grid-cols-1 @lg:grid-cols-2 @3xl:grid-cols-3 @5xl:grid-cols-7 gap-3">
           {weekDays.map((dayIso) => {
             const dayShifts = visibleCalendarShifts.filter(
               (s) => s.date === dayIso,
@@ -455,7 +455,7 @@ export function ScheduleFairnessScreen({
             return (
               <div
                 key={dayIso}
-                className={`bg-white border rounded-xl p-3 flex flex-col gap-2.5 min-h-48 ${
+                className={`bg-white border rounded-xl p-3 flex flex-col gap-2.5 min-w-0 min-h-36 @5xl:min-h-48 ${
                   isToday ? 'border-blue-400 ring-1 ring-blue-100' : 'border-slate-200'
                 }`}
               >
@@ -518,73 +518,76 @@ export function ScheduleFairnessScreen({
       )}
 
       {subTab === 'calendar' && calendarMode === 'month' && (
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-          <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase text-slate-500">
-            {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
-              <div key={d} className="px-3 py-2">
-                {d}
-              </div>
-            ))}
-          </div>
-          <div className="grid grid-cols-7 divide-x divide-y divide-slate-200">
-            {monthGridDays.map(({ iso, inCurrentMonth }) => {
-              const dayShifts = visibleCalendarShifts.filter(
-                (s) => s.date === iso,
-              );
-              const dayNum = iso.split('-')[2];
-              const isToday = iso === todayIso;
-              return (
-                <div
-                  key={iso}
-                  className={`min-h-28 p-2 space-y-1.5 ${
-                    inCurrentMonth ? 'bg-white' : 'bg-slate-50/70'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span
-                      className={`text-xs font-mono-tabular font-semibold px-1.5 py-0.5 rounded ${
-                        isToday
-                          ? 'bg-blue-600 text-white'
-                          : inCurrentMonth
-                            ? 'text-slate-900'
-                            : 'text-slate-400'
-                      }`}
-                    >
-                      {dayNum}
-                    </span>
-                    {isManager && (
-                      <button
-                        type="button"
-                        onClick={() => onOpenAddShift(iso)}
-                        className="text-slate-400 hover:text-blue-600 cursor-pointer"
-                      >
-                        <Plus className="w-3 h-3" />
-                      </button>
-                    )}
-                  </div>
-                  <div className="space-y-1">
-                    {dayShifts.slice(0, 3).map((shift) => (
-                      <button
-                        key={shift.id}
-                        type="button"
-                        onClick={() => onInspectShift(shift)}
-                        className="w-full text-left px-1.5 py-1 rounded bg-slate-100 hover:bg-blue-50 text-[11px] text-slate-800 truncate cursor-pointer block"
-                      >
-                        <span className="font-mono-tabular font-semibold">
-                          {shift.startTime}
-                        </span>{' '}
-                        {shift.assignedName.trim() || 'Open'}
-                      </button>
-                    ))}
-                    {dayShifts.length > 3 && (
-                      <div className="text-[10px] font-semibold text-slate-500 px-1">
-                        +{dayShifts.length - 3} more
-                      </div>
-                    )}
-                  </div>
+        <div className="bg-white border border-slate-200 rounded-xl overflow-x-auto cadence-scroll">
+          <div className="min-w-[680px]">
+            <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase text-slate-500">
+              {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
+                <div key={d} className="px-2.5 @3xl:px-3 py-2">
+                  {d}
                 </div>
-              );
-            })}
+              ))}
+            </div>
+            <div className="grid grid-cols-7 divide-x divide-y divide-slate-200">
+              {monthGridDays.map(({ iso, inCurrentMonth }) => {
+                const dayShifts = visibleCalendarShifts.filter(
+                  (s) => s.date === iso,
+                );
+                const dayNum = iso.split('-')[2];
+                const isToday = iso === todayIso;
+                return (
+                  <div
+                    key={iso}
+                    className={`min-h-24 @5xl:min-h-28 p-1.5 @3xl:p-2 space-y-1.5 min-w-0 ${
+                      inCurrentMonth ? 'bg-white' : 'bg-slate-50/70'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span
+                        className={`text-xs font-mono-tabular font-semibold px-1.5 py-0.5 rounded ${
+                          isToday
+                            ? 'bg-blue-600 text-white'
+                            : inCurrentMonth
+                              ? 'text-slate-900'
+                              : 'text-slate-400'
+                        }`}
+                      >
+                        {dayNum}
+                      </span>
+                      {isManager && (
+                        <button
+                          type="button"
+                          onClick={() => onOpenAddShift(iso)}
+                          aria-label={`Add shift on ${iso}`}
+                          className="text-slate-400 hover:text-blue-600 cursor-pointer"
+                        >
+                          <Plus className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      {dayShifts.slice(0, 3).map((shift) => (
+                        <button
+                          key={shift.id}
+                          type="button"
+                          onClick={() => onInspectShift(shift)}
+                          className="w-full text-left px-1.5 py-1 rounded bg-slate-100 hover:bg-blue-50 text-[11px] text-slate-800 truncate cursor-pointer block"
+                        >
+                          <span className="font-mono-tabular font-semibold">
+                            {shift.startTime}
+                          </span>{' '}
+                          {shift.assignedName.trim() || 'Open'}
+                        </button>
+                      ))}
+                      {dayShifts.length > 3 && (
+                        <div className="text-[10px] font-semibold text-slate-500 px-1">
+                          +{dayShifts.length - 3} more
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
@@ -592,8 +595,8 @@ export function ScheduleFairnessScreen({
       {/* Table View */}
       {subTab === 'table' && (
         <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-1.5 bg-white border border-slate-200 rounded-lg p-1">
+          <div className="flex flex-col @2xl:flex-row @2xl:items-center @2xl:justify-between gap-3">
+            <div className="inline-flex items-center gap-1 max-w-full overflow-x-auto cadence-scroll bg-white border border-slate-200 rounded-lg p-1">
               {(
                 [
                   ['all', 'All'],
@@ -618,7 +621,7 @@ export function ScheduleFairnessScreen({
               ))}
             </div>
 
-            <div className="relative w-full sm:w-64">
+            <div className="relative w-full @2xl:w-64 shrink-0">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
@@ -637,8 +640,8 @@ export function ScheduleFairnessScreen({
               subtitle="Change your table filter or add a new team shift."
             />
           ) : (
-            <div className="bg-white border border-slate-200 rounded-xl overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+            <div className="bg-white border border-slate-200 rounded-xl overflow-x-auto cadence-scroll">
+              <table className="w-full min-w-[620px] text-left border-collapse">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                     <th className="py-3 px-4">Shift</th>
@@ -731,7 +734,7 @@ export function ScheduleFairnessScreen({
               }
             />
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 @2xl:grid-cols-2 @6xl:grid-cols-3 gap-3">
               {activeSubmissions.map((sub) => (
                 <SurfaceCard key={sub.id} className="space-y-2.5">
                   <div className="flex items-start justify-between gap-2">

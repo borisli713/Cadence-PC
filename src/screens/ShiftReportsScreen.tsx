@@ -178,16 +178,16 @@ export function ShiftReportsScreen({
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Shift Reports</h1>
-          <p className="text-sm text-slate-500 mt-1">
+    <div className="space-y-5 @xl:space-y-6">
+      <div className="flex flex-col @3xl:flex-row @3xl:items-start @3xl:justify-between gap-3 @xl:gap-4">
+        <div className="min-w-0">
+          <h1 className="text-xl @xl:text-2xl font-bold text-slate-900">Shift Reports</h1>
+          <p className="text-xs @xl:text-sm text-slate-500 mt-1">
             Verified clock-in/out logs, break deductions, and manager verification
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           {filteredReports.length > 0 && (
             <button
               type="button"
@@ -253,7 +253,7 @@ export function ShiftReportsScreen({
       </div>
 
       {/* Filter Tabs */}
-      <div className="inline-flex flex-wrap items-center gap-1 bg-white border border-slate-200 rounded-lg p-1">
+      <div className="inline-flex items-center gap-1 max-w-full overflow-x-auto cadence-scroll bg-white border border-slate-200 rounded-lg p-1">
         {(
           [
             ['all', `All (${data.shiftReports.length})`],
@@ -284,7 +284,7 @@ export function ShiftReportsScreen({
           subtitle="Click Log Shift Report to submit actual worked hours and handoff notes."
         />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 @2xl:grid-cols-2 @6xl:grid-cols-3 gap-4">
           {filteredReports.map((rep) => (
             <SurfaceCard key={rep.id} className="space-y-3">
               <div className="flex items-start justify-between gap-3">

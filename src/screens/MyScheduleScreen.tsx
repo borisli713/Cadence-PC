@@ -110,14 +110,14 @@ export function MyScheduleScreen({
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-slate-900">My Schedule</h1>
+    <div className="space-y-5 @xl:space-y-6">
+      <div className="flex flex-col @3xl:flex-row @3xl:items-start @3xl:justify-between gap-3 @xl:gap-4">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-xl @xl:text-2xl font-bold text-slate-900">My Schedule</h1>
             <StatusChip label="Live Sync" tone="success" />
           </div>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-xs @xl:text-sm text-slate-500 mt-1">
             Personal assigned shifts, Google Calendar export, and change requests
           </p>
         </div>
@@ -194,7 +194,7 @@ export function MyScheduleScreen({
       )}
 
       {/* KPI Summary */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 @sm:grid-cols-2 gap-3 @xl:gap-4">
         <KpiTile
           label="Upcoming Shifts"
           value={upcomingShifts.length}
@@ -212,8 +212,8 @@ export function MyScheduleScreen({
       </div>
 
       {/* Filters & Search */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-1.5 bg-white border border-slate-200 rounded-lg p-1">
+      <div className="flex flex-col @2xl:flex-row @2xl:items-center @2xl:justify-between gap-3">
+        <div className="inline-flex items-center gap-1 max-w-full overflow-x-auto cadence-scroll bg-white border border-slate-200 rounded-lg p-1">
           {(
             [
               ['upcoming', 'Upcoming'],
@@ -237,7 +237,7 @@ export function MyScheduleScreen({
           ))}
         </div>
 
-        <div className="relative w-full sm:w-64">
+        <div className="relative w-full @2xl:w-64 shrink-0">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
@@ -257,7 +257,7 @@ export function MyScheduleScreen({
           subtitle="Adjust your filter or explore open team shifts in Schedule & Fairness."
         />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 @2xl:grid-cols-2 @6xl:grid-cols-3 gap-4">
           {filteredShifts.map((shift) => (
             <SurfaceCard
               key={shift.id}

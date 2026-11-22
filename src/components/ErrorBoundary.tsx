@@ -38,8 +38,8 @@ export class ErrorBoundary extends React.Component<
     }
 
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
-        <div className="max-w-lg w-full bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
+      <div className="min-h-dvh bg-slate-50 flex flex-col items-center px-4 py-6 sm:p-6 overflow-y-auto cadence-scroll">
+        <div className="max-w-lg w-full bg-white border border-slate-200 rounded-xl p-5 sm:p-6 shadow-sm space-y-4 my-auto">
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 rounded-lg bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center shrink-0">
               <AlertTriangle className="w-5 h-5" />

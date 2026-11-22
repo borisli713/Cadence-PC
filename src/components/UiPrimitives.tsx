@@ -141,7 +141,7 @@ export function SurfaceCard({
             onClick();
           }
         }}
-        className={`bg-white border border-slate-200 rounded-xl p-4 sm:p-5 transition-colors hover:border-slate-300 cursor-pointer ${className}`}
+        className={`bg-white border border-slate-200 rounded-xl p-3.5 sm:p-5 transition-colors hover:border-slate-300 cursor-pointer min-w-0 ${className}`}
       >
         {children}
       </div>
@@ -149,7 +149,7 @@ export function SurfaceCard({
   }
   return (
     <div
-      className={`bg-white border border-slate-200 rounded-xl p-4 sm:p-5 ${className}`}
+      className={`bg-white border border-slate-200 rounded-xl p-3.5 sm:p-5 min-w-0 ${className}`}
     >
       {children}
     </div>
@@ -170,14 +170,14 @@ export function KpiTile({
   icon?: React.ReactNode;
 }) {
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col justify-between gap-2">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+    <div className="bg-white border border-slate-200 rounded-xl p-3.5 sm:p-4 flex flex-col justify-between gap-2 min-w-0">
+      <div className="flex items-center justify-between gap-2 min-w-0">
+        <span className="text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-slate-500 truncate">
           {label}
         </span>
         {icon && <span className="text-slate-400 shrink-0">{icon}</span>}
       </div>
-      <div className={`text-2xl font-bold font-mono-tabular ${accentClass}`}>
+      <div className={`text-xl sm:text-2xl font-bold font-mono-tabular ${accentClass}`}>
         {value}
       </div>
       {subtext && (
@@ -199,7 +199,7 @@ export function EmptyStatePanel({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-8 text-center flex flex-col items-center justify-center gap-3">
+    <div className="bg-white border border-slate-200 rounded-xl p-6 sm:p-8 text-center flex flex-col items-center justify-center gap-3">
       <div className="w-11 h-11 rounded-lg bg-slate-100 border border-slate-200 text-slate-500 flex items-center justify-center">
         {icon}
       </div>
@@ -242,7 +242,7 @@ export function ModalShell({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/45 backdrop-blur-[1px]"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-900/45 backdrop-blur-[1px]"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -250,9 +250,9 @@ export function ModalShell({
       <div
         role="dialog"
         aria-modal="true"
-        className={`w-full ${maxWidthClass} bg-white border border-slate-200 rounded-xl shadow-xl flex flex-col max-h-[90vh] overflow-hidden`}
+        className={`w-full ${maxWidthClass} bg-white border border-slate-200 rounded-xl shadow-xl flex flex-col max-h-[92dvh] overflow-hidden`}
       >
-        <div className="px-5 py-4 border-b border-slate-200 flex items-start justify-between gap-3 shrink-0">
+        <div className="px-4 sm:px-5 py-3.5 sm:py-4 border-b border-slate-200 flex items-start justify-between gap-3 shrink-0">
           <div className="min-w-0">
             <h2 className="text-base font-bold text-slate-900 truncate">
               {title}
@@ -273,12 +273,12 @@ export function ModalShell({
           </button>
         </div>
 
-        <div className="p-5 overflow-y-auto space-y-4 text-sm text-slate-700">
+        <div className="p-4 sm:p-5 overflow-y-auto cadence-scroll space-y-4 text-sm text-slate-700">
           {children}
         </div>
 
         {footer && (
-          <div className="px-5 py-3.5 border-t border-slate-200 bg-slate-50 flex flex-wrap items-center justify-end gap-2.5 shrink-0">
+          <div className="px-4 sm:px-5 py-3 sm:py-3.5 border-t border-slate-200 bg-slate-50 flex flex-wrap items-center justify-end gap-2 shrink-0">
             {footer}
           </div>
         )}
