@@ -2825,15 +2825,28 @@ mod tests {
         let open_writes = writes_for_open_shift_plan(&open_plan, "mgr_1");
         assert_eq!(open_writes.len(), 3);
 
+        let submissions = vec![ShiftSubmission {
+            id: "sub_mon".to_string(),
+            staff_uid: "u2".to_string(),
+            staff_name: "Liam Brooks".to_string(),
+            department: "Operations".to_string(),
+            date: "2026-11-23".to_string(),
+            start_time: "07:00".to_string(),
+            end_time: "15:00".to_string(),
+            shift_title: "Morning".to_string(),
+            notes: "Available".to_string(),
+            status: SubmissionStatus::Submitted,
+        }];
         let weekly_specs = generate_weekly_fairness_schedule(
             "2026-11-23",
             &default_week_slots(),
             &staff,
             &[],
-            &[],
+            &submissions,
             &[],
         );
         let (summary, weekly_writes) = writes_for_weekly_schedule(&weekly_specs, "mgr_1");
+        assert!(summary.assigned >= 1);
         assert_eq!(summary.assigned + summary.open, weekly_specs.len());
         assert!(weekly_writes.len() > weekly_specs.len());
     }

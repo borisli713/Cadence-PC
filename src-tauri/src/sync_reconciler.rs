@@ -164,6 +164,23 @@ pub fn reconcile_workspace_snapshot(snapshot: &WorkspaceSnapshot) -> ThreeWaySyn
         }
     }
 
+    for member in &snapshot.staff_directory {
+        if let Some(&verified_sum) = verified_hours_by_uid.get(&member.uid) {
+            if (verified_sum - member.total_hours_worked).abs() >= 0.1 {
+                issues.push(SyncConsistencyIssue {
+                    issue_id: format!("verified_hours_mismatch_{}", member.uid),
+                    collection: "staffDirectory".to_string(),
+                    doc_id: member.uid.clone(),
+                    severity: "warning".to_string(),
+                    message: format!(
+                        "{} has {:.1}h in verified shift reports vs {:.1}h recorded in staffDirectory.",
+                        member.display_name, verified_sum, member.total_hours_worked
+                    ),
+                });
+            }
+        }
+    }
+
     let conflicts = detect_schedule_conflicts(&snapshot.shifts, &snapshot.time_off_requests);
     for conflict in conflicts {
         issues.push(SyncConsistencyIssue {

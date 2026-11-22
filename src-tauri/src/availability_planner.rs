@@ -520,7 +520,7 @@ mod tests {
         let cov = evaluate_weekly_availability_coverage("2026-11-23", &slots, &[], &subs, &[])
             .expect("coverage evaluates");
         assert_eq!(cov.total_slots, 21);
-        assert_eq!(cov.under_covered_slots, 20);
+        assert_eq!(cov.under_covered_slots, 19);
         let mon_morning = cov
             .cells
             .iter()

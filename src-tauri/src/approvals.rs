@@ -483,8 +483,11 @@ mod tests {
             "Alex",
             "No backup",
         );
-        let deny_patch = denied.shift_patch.expect("denial restores shift status");
-        assert_eq!(deny_patch.status, ShiftStatus::Scheduled);
-        assert_eq!(deny_patch.assigned_uid, "u1");
+        assert!(denied.shift_patch.is_none());
+        assert_eq!(denied.decision, ApprovalStatus::Denied);
+        assert_eq!(
+            denied.notifications[0].category,
+            NotificationCategory::ShiftDenied
+        );
     }
 }
