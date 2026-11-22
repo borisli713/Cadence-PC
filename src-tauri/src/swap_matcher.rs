@@ -341,7 +341,7 @@ mod tests {
         assert!(bad_sim.new_compliance_violations > bad_sim.previous_compliance_violations);
 
         let good_sim = simulate_swap_impact(
-            &shift_next,
+            &shift_next.clone(),
             "u_fresh",
             &staff,
             &[shift_prev, shift_next],
