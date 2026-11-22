@@ -15,11 +15,8 @@ import {
 import {
   addDaysIso,
   addMonthsIso,
-  buildFairnessArrangementPlanWithRust,
-  buildOpenShiftAssignmentPlanWithRust,
   formatHours,
   formatIsoDate,
-  generateWeeklyFairnessScheduleWithRust,
   getMondayIso,
 } from '../domain/fairnessEngine';
 import {
@@ -28,7 +25,6 @@ import {
   ShiftStatus,
   SubmissionStatus,
   UserRole,
-  WeekSlotConfig,
   WorkspaceUiData,
 } from '../types/cadence';
 import { exportIcsFile } from '../utils/calendarExport';
@@ -42,7 +38,6 @@ import {
 
 interface ScheduleFairnessScreenProps {
   data: WorkspaceUiData;
-  weekSlots: WeekSlotConfig[];
   onNavigate: (tab: CadenceTab) => void;
   onInspectShift: (shift: Shift) => void;
   onOpenAddShift: (defaultDate: string) => void;
@@ -64,7 +59,6 @@ type TableFilter = 'all' | 'mine' | 'open' | 'overlaps' | 'completed';
 
 export function ScheduleFairnessScreen({
   data,
-  weekSlots,
   onNavigate,
   onInspectShift,
   onOpenAddShift,
@@ -176,16 +170,11 @@ export function ScheduleFairnessScreen({
   const handleArrangeOverlaps = async () => {
     setBusyAction('arrange');
     try {
-      const plan = await buildFairnessArrangementPlanWithRust(
-        data.shifts,
-        data.staffDirectory,
-        data.timeOffRequests,
-      );
-      if (plan.length === 0) {
+      const count = await onCommitFairnessPlan();
+      if (count === 0) {
         onShowFeedback('No overlapping candidate shifts require arrangement.');
         return;
       }
-      const count = await onCommitFairnessPlan();
       onShowFeedback(
         `Fairness Engine resolved ${count} overlapping shift${count === 1 ? '' : 's'}.`,
       );
@@ -197,18 +186,11 @@ export function ScheduleFairnessScreen({
   const handleAssignOpen = async () => {
     setBusyAction('open');
     try {
-      const plan = await buildOpenShiftAssignmentPlanWithRust(
-        data.shifts,
-        data.staffDirectory,
-        data.shiftSubmissions,
-        data.timeOffRequests,
-        false,
-      );
-      if (plan.length === 0) {
+      const count = await onCommitOpenShiftPlan();
+      if (count === 0) {
         onShowFeedback('No open shifts could be matched cleanly.');
         return;
       }
-      const count = await onCommitOpenShiftPlan();
       onShowFeedback(
         `Assigned ${count} open shift${count === 1 ? '' : 's'} by fairness balance.`,
       );
@@ -221,21 +203,13 @@ export function ScheduleFairnessScreen({
     setBusyAction('generate');
     try {
       const mondayIso = addDaysIso(getMondayIso(), 7);
-      const preview = await generateWeeklyFairnessScheduleWithRust(
-        mondayIso,
-        weekSlots,
-        data.staffDirectory,
-        data.shifts,
-        data.shiftSubmissions,
-        data.timeOffRequests,
-      );
-      if (preview.length === 0) {
+      const res = await onGenerateWeeklySchedule(mondayIso);
+      if (res.assigned === 0 && res.open === 0) {
         onShowFeedback(
           `All shift slots for week of ${mondayIso} already exist on the calendar.`,
         );
         return;
       }
-      const res = await onGenerateWeeklySchedule(mondayIso);
       onShowFeedback(
         `Generated week of ${mondayIso}: ${res.assigned} assigned, ${res.open} open.`,
       );
@@ -802,6 +776,7 @@ export function ScheduleFairnessScreen({
       <StaffHoursBalanceChart
         staffDirectory={data.staffDirectory}
         shifts={data.shifts}
+        rustRows={data.rustInsights?.staffChart}
       />
     </div>
   );

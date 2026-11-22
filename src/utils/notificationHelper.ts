@@ -7,7 +7,12 @@ import {
   TimeOffRequest,
 } from '../types/cadence';
 import { formatHours } from '../domain/fairnessEngine';
-import { invokeNativeNotification, isTauriDesktop } from './tauriBridge';
+import {
+  invokeFilterNewManagerWorkAlerts,
+  invokeFilterUnnotifiedAlerts,
+  invokeNativeNotification,
+  isTauriDesktop,
+} from './tauriBridge';
 
 const STORAGE_KEY_NOTIFIED_IDS = 'cadence_notified_ids_v1';
 const STORAGE_KEY_MGR_KEYS = 'cadence_notified_mgr_keys_v1';
@@ -101,6 +106,17 @@ export function filterUnnotifiedAlerts(
   return fresh;
 }
 
+export async function filterUnnotifiedAlertsWithRust(
+  uid: string,
+  notifications: PushNotificationRecord[],
+  pushEnabled: boolean,
+): Promise<PushNotificationRecord[]> {
+  if (!pushEnabled) return [];
+  const rustFresh = await invokeFilterUnnotifiedAlerts(uid, notifications, pushEnabled);
+  if (rustFresh !== null) return rustFresh;
+  return filterUnnotifiedAlerts(uid, notifications, pushEnabled);
+}
+
 export function buildManagerWorkPayloads(
   managerUid: string,
   scheduleChanges: ScheduleChangeRequest[],
@@ -156,4 +172,15 @@ export function filterNewManagerWorkAlerts(
     writeSet(storeKey, seen);
   }
   return fresh;
+}
+
+export async function filterNewManagerWorkAlertsWithRust(
+  uid: string,
+  items: NotificationPayload[],
+  pushEnabled: boolean,
+): Promise<NotificationPayload[]> {
+  if (!pushEnabled) return [];
+  const rustFresh = await invokeFilterNewManagerWorkAlerts(uid, items, pushEnabled);
+  if (rustFresh !== null) return rustFresh;
+  return filterNewManagerWorkAlerts(uid, items, pushEnabled);
 }

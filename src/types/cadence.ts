@@ -358,6 +358,61 @@ export interface ValidationOutcome {
   errorMessage: string | null;
 }
 
+export interface ConflictReportItem {
+  shiftId: string;
+  shiftTitle: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  assignedUid: string;
+  assignedName: string;
+  reason: string;
+}
+
+export interface DepartmentCoverageSummary {
+  department: string;
+  totalShifts: number;
+  openShifts: number;
+  conflictShifts: number;
+  completedShifts: number;
+  totalHours: number;
+}
+
+export interface TeamRosterStats {
+  totalMembers: number;
+  managerCount: number;
+  staffCount: number;
+  sampleRosterCount: number;
+  totalWeeklyTargetHours: number;
+  totalVerifiedWorkedHours: number;
+}
+
+export interface DerivedWorkspaceInsights {
+  kpis: DashboardKpis;
+  staffChart: StaffChartRow[];
+  conflicts: ConflictReportItem[];
+  departmentCoverage: DepartmentCoverageSummary[];
+  rosterStats: TeamRosterStats;
+  managerWorkPayloads: NotificationWorkPayload[];
+  unreadNotificationCount: number;
+  cachedDocCount: number;
+}
+
+export interface DesktopRuntimeInfo {
+  appVersion: string;
+  platform: string;
+  projectId: string;
+  firestoreDatabaseId: string;
+  syncEngine: string;
+  rustModulesCount: number;
+  cachedWorkspaceDocs: number;
+}
+
+export interface WeeklyScheduleCommitResult {
+  assigned: number;
+  open: number;
+}
+
 export interface WorkspaceUiData {
   profile: UserProfile;
   staffDirectory: StaffDirectoryEntry[];
@@ -367,6 +422,7 @@ export interface WorkspaceUiData {
   shiftSubmissions: ShiftSubmission[];
   timeOffRequests: TimeOffRequest[];
   notifications: PushNotificationRecord[];
+  rustInsights?: DerivedWorkspaceInsights | null;
   streamError: string | null;
 }
 

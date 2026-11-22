@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import {
   Database,
   Download,
+  FileText,
   Shield,
   ShieldOff,
   UserPlus,
@@ -16,7 +17,11 @@ import {
   UserRole,
   WorkspaceUiData,
 } from '../types/cadence';
-import { invokeSaveTeamHoursCsv } from '../utils/tauriBridge';
+import {
+  invokeSavePayrollSummary,
+  invokeSaveTeamHoursCsv,
+  isTauriDesktop,
+} from '../utils/tauriBridge';
 import { StaffHoursBalanceChart } from '../components/StaffHoursBalanceChart';
 import {
   EmptyStatePanel,
@@ -164,6 +169,21 @@ export function TeamHoursScreen({
               <span>Export CSV</span>
             </button>
           )}
+          {data.staffDirectory.length > 0 && isTauriDesktop() && (
+            <button
+              type="button"
+              onClick={async () => {
+                const savedPath = await invokeSavePayrollSummary('Active Workspace');
+                if (typeof savedPath === 'string') {
+                  onShowFeedback(`Saved payroll HTML summary to ${savedPath}`);
+                }
+              }}
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-800 cursor-pointer whitespace-nowrap shrink-0"
+            >
+              <FileText className="w-4 h-4 text-slate-600" />
+              <span>Export HTML</span>
+            </button>
+          )}
           {isManager && (
             <>
               <button
@@ -207,6 +227,7 @@ export function TeamHoursScreen({
       <StaffHoursBalanceChart
         staffDirectory={data.staffDirectory}
         shifts={data.shifts}
+        rustRows={data.rustInsights?.staffChart}
       />
 
       {sortedStaff.length === 0 ? (

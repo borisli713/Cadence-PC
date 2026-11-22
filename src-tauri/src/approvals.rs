@@ -458,4 +458,33 @@ mod tests {
         assert_eq!(dec.notification.category, NotificationCategory::TimeOffDenied);
         assert!(dec.notification.message.contains("Peak week"));
     }
+
+    #[test]
+    fn approved_drop_opens_shift_and_denial_restores_scheduled_status() {
+        let shift = sample_shift(ShiftStatus::PendingChange, "u1", "Maya Patel");
+        let drop_req = sample_req("c_drop", ScheduleChangeType::Drop, ApprovalStatus::Pending);
+        let approved = plan_schedule_change_decision(
+            &drop_req,
+            Some(&shift),
+            ApprovalStatus::Approved,
+            "mgr_1",
+            "Alex",
+            "Covered by float pool",
+        );
+        let patch = approved.shift_patch.expect("drop should patch shift");
+        assert_eq!(patch.status, ShiftStatus::Open);
+        assert!(patch.assigned_uid.is_empty());
+
+        let denied = plan_schedule_change_decision(
+            &drop_req,
+            Some(&shift),
+            ApprovalStatus::Denied,
+            "mgr_1",
+            "Alex",
+            "No backup",
+        );
+        let deny_patch = denied.shift_patch.expect("denial restores shift status");
+        assert_eq!(deny_patch.status, ShiftStatus::Scheduled);
+        assert_eq!(deny_patch.assigned_uid, "u1");
+    }
 }

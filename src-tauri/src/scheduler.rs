@@ -240,4 +240,37 @@ mod tests {
         assert_eq!(eligible.len(), 1);
         assert_eq!(eligible[0].uid, "u2");
     }
+
+    #[test]
+    fn allows_adjacent_back_to_back_shifts_and_summarizes_departments() {
+        let s1 = mk_shift("1", "u1", "Maya", "2026-11-23", "07:00", "15:00", ShiftStatus::Scheduled);
+        let s2 = mk_shift("2", "u1", "Maya", "2026-11-23", "15:00", "23:00", ShiftStatus::Completed);
+        let mut open = mk_shift("3", "", "", "2026-11-24", "09:00", "17:00", ShiftStatus::Open);
+        open.department = "Support".to_string();
+
+        let conflicts = detect_schedule_conflicts(&[s1.clone(), s2.clone(), open.clone()], &[]);
+        assert!(conflicts.is_empty());
+
+        let summary = summarize_department_coverage(&[s1, s2, open]);
+        assert_eq!(summary.len(), 2);
+        assert_eq!(summary[0].department, "Operations");
+        assert_eq!(summary[0].total_shifts, 2);
+        assert_eq!(summary[0].completed_shifts, 1);
+        assert_eq!(summary[0].total_hours, 16.0);
+        assert_eq!(summary[1].open_shifts, 1);
+    }
+
+    #[test]
+    fn rejects_invalid_week_slot_windows() {
+        assert!(validate_week_slots(&[]).is_err());
+        let bad = vec![WeekSlotConfig {
+            id: "s1".to_string(),
+            label: "Bad".to_string(),
+            title: "Morning".to_string(),
+            department: "Ops".to_string(),
+            start_time: "25:00".to_string(),
+            end_time: "15:00".to_string(),
+        }];
+        assert!(validate_week_slots(&bad).is_err());
+    }
 }

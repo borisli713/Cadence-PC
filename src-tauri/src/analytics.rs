@@ -167,4 +167,79 @@ mod tests {
         assert_eq!(count_days_inclusive("2026-11-20", "2026-11-20"), 1);
         assert_eq!(count_days_inclusive("2026-11-20", "2026-11-22"), 3);
     }
+
+    #[test]
+    fn computes_dashboard_kpis_across_open_conflict_and_completed_shifts() {
+        let staff = vec![StaffDirectoryEntry {
+            uid: "u1".to_string(),
+            display_name: "Maya".to_string(),
+            role: UserRole::Staff,
+            department: "Ops".to_string(),
+            total_hours_worked: 22.5,
+            scheduled_hours_this_week: 8.0,
+            weekly_hours_target: 40.0,
+            last_assigned_at: String::new(),
+            is_sample_roster: false,
+        }];
+        let future_date = (Local::now().date_naive() + chrono::Duration::days(2))
+            .format("%Y-%m-%d")
+            .to_string();
+        let shifts = vec![
+            Shift {
+                id: "s1".to_string(),
+                title: "Upcoming".to_string(),
+                department: "Ops".to_string(),
+                date: future_date.clone(),
+                start_time: "08:00".to_string(),
+                end_time: "16:00".to_string(),
+                duration_hours: 8.0,
+                assigned_uid: "u1".to_string(),
+                assigned_name: "Maya".to_string(),
+                candidate_uids: vec![],
+                status: ShiftStatus::Scheduled,
+                visibility: "team".to_string(),
+                fairness_note: String::new(),
+                created_by: "mgr".to_string(),
+            },
+            Shift {
+                id: "s2".to_string(),
+                title: "Open Slot".to_string(),
+                department: "Ops".to_string(),
+                date: future_date.clone(),
+                start_time: "16:00".to_string(),
+                end_time: "22:00".to_string(),
+                duration_hours: 6.0,
+                assigned_uid: String::new(),
+                assigned_name: String::new(),
+                candidate_uids: vec!["u1".to_string(), "u2".to_string()],
+                status: ShiftStatus::Open,
+                visibility: "team".to_string(),
+                fairness_note: String::new(),
+                created_by: "mgr".to_string(),
+            },
+        ];
+        let time_off = vec![TimeOffRequest {
+            id: "to1".to_string(),
+            staff_uid: "u1".to_string(),
+            staff_name: "Maya".to_string(),
+            department: "Ops".to_string(),
+            start_date: future_date.clone(),
+            end_date: future_date,
+            reason: "Dentist".to_string(),
+            status: ApprovalStatus::Pending,
+            reviewed_by_uid: String::new(),
+            reviewed_by_name: String::new(),
+            review_note: String::new(),
+        }];
+
+        let kpis = compute_dashboard_kpis("u1", 40.0, &shifts, 3, &time_off, &staff);
+        assert_eq!(kpis.my_shifts_count, 1);
+        assert_eq!(kpis.my_upcoming_count, 1);
+        assert_eq!(kpis.my_scheduled_hours, 8.0);
+        assert_eq!(kpis.my_verified_hours, 22.5);
+        assert_eq!(kpis.pending_approvals_count, 3);
+        assert_eq!(kpis.pending_time_off_count, 1);
+        assert_eq!(kpis.conflict_shifts_count, 1);
+        assert_eq!(kpis.open_shifts_count, 1);
+    }
 }

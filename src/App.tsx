@@ -457,7 +457,6 @@ export function App() {
           {activeTab === CadenceTab.SCHEDULE && (
             <ScheduleFairnessScreen
               data={data}
-              weekSlots={weekSlots}
               onNavigate={setActiveTab}
               onInspectShift={setInspectedShift}
               onOpenAddShift={(defaultDate) =>

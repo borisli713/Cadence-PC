@@ -1,4 +1,3 @@
-import { invokeBuildSampleWorkspace } from '../utils/tauriBridge';
 import type { User } from 'firebase/auth';
 import {
   collection,
@@ -11,11 +10,22 @@ import {
   where,
   writeBatch,
   type DocumentData,
+  type DocumentReference,
+  type Query,
   type QueryDocumentSnapshot,
   type Unsubscribe,
+  type WriteBatch,
 } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from '../firebase';
-import { computeShiftHours, formatHours, getMondayIso, addDaysIso } from '../domain/fairnessEngine';
+import {
+  buildFairnessArrangementPlan,
+  buildOpenShiftAssignmentPlan,
+  computeShiftHours,
+  formatHours,
+  generateWeeklyFairnessSchedule,
+  getMondayIso,
+  addDaysIso,
+} from '../domain/fairnessEngine';
 import {
   ApprovalStatus,
   FairnessArrangementItem,
@@ -42,17 +52,50 @@ import {
   TimeOffRequest,
   UserProfile,
   UserRole,
+  WeekSlotConfig,
 } from '../types/cadence';
+import {
+  invokeRepoAcceptAllPending,
+  invokeRepoAddRosterStaff,
+  invokeRepoCommitFairnessPlan,
+  invokeRepoCommitOpenShiftPlan,
+  invokeRepoCreateShift,
+  invokeRepoCreateTimeOff,
+  invokeRepoDecideScheduleChange,
+  invokeRepoDecideTimeOff,
+  invokeRepoDeleteShift,
+  invokeRepoEnsureVerifiedUserProvisioned,
+  invokeRepoGenerateWeeklySchedule,
+  invokeRepoMarkAllNotificationsRead,
+  invokeRepoMarkNotificationRead,
+  invokeRepoSeedSampleWorkspace,
+  invokeRepoSendTestNotification,
+  invokeRepoSubmitAvailabilityBatch,
+  invokeRepoSubmitScheduleChange,
+  invokeRepoSubmitShiftReport,
+  invokeRepoToggleManagerRole,
+  invokeRepoUpdateShift,
+  invokeRepoUpdateUserPreferences,
+  invokeRepoVerifyOrFlagReport,
+  invokeRepoWithdrawSubmission,
+  invokeRepoWithdrawTimeOff,
+  isTauriDesktop,
+} from '../utils/tauriBridge';
 
 export const BOOTSTRAPPED_ADMIN_EMAIL = 'yatheili713@gmail.com';
 const CHUNK_SIZE = 400;
 
 function requireUserId(): string {
   const uid = auth.currentUser?.uid;
-  if (!uid) {
-    throw new Error('User must be signed in before accessing Firestore.');
-  }
+  if (!uid) throw new Error('User must be signed in before accessing Firestore.');
   return uid;
+}
+
+async function requireDesktopToken(): Promise<{ uid: string; idToken: string } | null> {
+  if (!isTauriDesktop()) return null;
+  const current = auth.currentUser;
+  if (!current) throw new Error('User must be signed in before accessing Firestore.');
+  return { uid: current.uid, idToken: await current.getIdToken() };
 }
 
 function newId(prefix: string): string {
@@ -63,24 +106,109 @@ function newId(prefix: string): string {
   return `${prefix}_${rand}`;
 }
 
-function round2(value: number): number {
-  return Math.round(value * 100) / 100;
+const round2 = (v: number): number => Math.round(v * 100) / 100;
+const asTimestamp = (v: unknown): Timestamp | null => (v instanceof Timestamp ? v : null);
+const asString = (v: unknown, fallback = ''): string => (typeof v === 'string' ? v : fallback);
+const asNumber = (v: unknown, fallback = 0): number =>
+  typeof v === 'number' && Number.isFinite(v) ? v : fallback;
+const asBool = (v: unknown, fallback = false): boolean => (typeof v === 'boolean' ? v : fallback);
+const tsSeconds = (ts: Timestamp | null): number => (ts ? ts.seconds : 0);
+
+type BatchOp =
+  | { kind: 'set'; ref: DocumentReference; data: Record<string, unknown> }
+  | { kind: 'update'; ref: DocumentReference; data: Record<string, unknown> }
+  | { kind: 'delete'; ref: DocumentReference };
+
+function applyOp(batch: WriteBatch, op: BatchOp): void {
+  if (op.kind === 'set') batch.set(op.ref, op.data);
+  else if (op.kind === 'update') batch.update(op.ref, op.data);
+  else batch.delete(op.ref);
 }
 
-function asTimestamp(value: unknown): Timestamp | null {
-  return value instanceof Timestamp ? value : null;
+async function commitOpsInChunks(
+  ops: BatchOp[],
+  errorOp: OperationType,
+  errorPath: string,
+): Promise<void> {
+  if (ops.length === 0) return;
+  try {
+    for (let i = 0; i < ops.length; i += CHUNK_SIZE) {
+      const batch = writeBatch(db);
+      for (const op of ops.slice(i, i + CHUNK_SIZE)) {
+        applyOp(batch, op);
+      }
+      await batch.commit();
+    }
+  } catch (e) {
+    handleFirestoreError(e, errorOp, errorPath);
+  }
 }
 
-function asString(value: unknown, fallback = ''): string {
-  return typeof value === 'string' ? value : fallback;
+function makeNotificationOp(
+  recipientUid: string,
+  title: string,
+  message: string,
+  category: NotificationCategory,
+  relatedShiftId: string,
+  actorUid: string,
+): BatchOp {
+  const id = newId('ntf');
+  return {
+    kind: 'set',
+    ref: doc(db, 'notifications', id),
+    data: {
+      id,
+      recipientUid,
+      title,
+      message: message.slice(0, 400),
+      category,
+      relatedShiftId,
+      isRead: false,
+      actorUid,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    },
+  };
 }
 
-function asNumber(value: unknown, fallback = 0): number {
-  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
-}
-
-function asBool(value: unknown, fallback = false): boolean {
-  return typeof value === 'boolean' ? value : fallback;
+function makeShiftData(params: {
+  id: string;
+  title: string;
+  department: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  durationHours: number;
+  assignedUid: string;
+  assignedName: string;
+  candidateUids: string[];
+  status: ShiftStatus;
+  fairnessNote: string;
+  createdBy: string;
+  includeCreatedAt: boolean;
+}): Record<string, unknown> {
+  const isOpen = params.status === ShiftStatus.OPEN;
+  const base: Record<string, unknown> = {
+    title: (params.title.trim() || 'Assigned Shift').slice(0, 120),
+    department: params.department.trim().slice(0, 60),
+    date: params.date,
+    startTime: params.startTime,
+    endTime: params.endTime,
+    durationHours: params.durationHours,
+    assignedUid: isOpen ? '' : params.assignedUid,
+    assignedName: isOpen ? '' : params.assignedName,
+    status: params.status,
+    fairnessNote: params.fairnessNote.slice(0, 300),
+    updatedAt: serverTimestamp(),
+  };
+  if (params.includeCreatedAt) {
+    base.id = params.id;
+    base.candidateUids = params.candidateUids.slice(0, 20);
+    base.visibility = 'team';
+    base.createdBy = params.createdBy;
+    base.createdAt = serverTimestamp();
+  }
+  return base;
 }
 
 function mapUserProfile(id: string, data: DocumentData | undefined): UserProfile | null {
@@ -116,9 +244,6 @@ function mapStaffDirectoryEntry(docSnap: QueryDocumentSnapshot<DocumentData>): S
 
 function mapShift(docSnap: QueryDocumentSnapshot<DocumentData>): Shift {
   const data = docSnap.data();
-  const candidates = Array.isArray(data.candidateUids)
-    ? data.candidateUids.filter((x): x is string => typeof x === 'string')
-    : [];
   return {
     id: asString(data.id, docSnap.id),
     title: asString(data.title, 'Shift'),
@@ -129,7 +254,9 @@ function mapShift(docSnap: QueryDocumentSnapshot<DocumentData>): Shift {
     durationHours: asNumber(data.durationHours, 8),
     assignedUid: asString(data.assignedUid),
     assignedName: asString(data.assignedName),
-    candidateUids: candidates,
+    candidateUids: Array.isArray(data.candidateUids)
+      ? data.candidateUids.filter((x): x is string => typeof x === 'string')
+      : [],
     status: parseShiftStatus(data.status),
     visibility: asString(data.visibility, 'team'),
     fairnessNote: asString(data.fairnessNote),
@@ -241,35 +368,40 @@ function mapNotification(docSnap: QueryDocumentSnapshot<DocumentData>): PushNoti
   };
 }
 
-function tsSeconds(ts: Timestamp | null): number {
-  return ts ? ts.seconds : 0;
-}
+// --- Real-Time Firestore Streams (Shared Live Sync Across Windows, Android & Web) ---
 
-// --- Real-Time Streams ---
+function subscribeCollection<T>(
+  q: Query<DocumentData>,
+  path: string,
+  mapper: (docSnap: QueryDocumentSnapshot<DocumentData>) => T,
+  sorter: (a: T, b: T) => number,
+  onData: (items: T[]) => void,
+  onError: (err: unknown) => void,
+): Unsubscribe {
+  return onSnapshot(
+    q,
+    (snap) => onData(snap.docs.map(mapper).sort(sorter)),
+    (error) => {
+      try {
+        handleFirestoreError(error, OperationType.LIST, path);
+      } catch (e) {
+        onError(e);
+      }
+    },
+  );
+}
 
 export function subscribeStaffDirectory(
   onData: (items: StaffDirectoryEntry[]) => void,
   onError: (err: unknown) => void,
 ): Unsubscribe {
-  const q = query(
-    collection(db, 'staffDirectory'),
-    where('role', 'in', ['staff', 'manager']),
-  );
-  return onSnapshot(
-    q,
-    (snap) => {
-      const list = snap.docs
-        .map(mapStaffDirectoryEntry)
-        .sort((a, b) => a.displayName.toLowerCase().localeCompare(b.displayName.toLowerCase()));
-      onData(list);
-    },
-    (error) => {
-      try {
-        handleFirestoreError(error, OperationType.LIST, 'staffDirectory');
-      } catch (e) {
-        onError(e);
-      }
-    },
+  return subscribeCollection(
+    query(collection(db, 'staffDirectory'), where('role', 'in', ['staff', 'manager'])),
+    'staffDirectory',
+    mapStaffDirectoryEntry,
+    (a, b) => a.displayName.toLowerCase().localeCompare(b.displayName.toLowerCase()),
+    onData,
+    onError,
   );
 }
 
@@ -280,18 +412,21 @@ export function subscribeShifts(
 ): Unsubscribe {
   const teamMap = new Map<string, Shift>();
   const assignedMap = new Map<string, Shift>();
-
   const emit = () => {
-    const merged = new Map<string, Shift>();
-    teamMap.forEach((v, k) => merged.set(k, v));
-    assignedMap.forEach((v, k) => merged.set(k, v));
-    const sorted = Array.from(merged.values()).sort((a, b) => {
-      if (a.date !== b.date) return a.date.localeCompare(b.date);
-      return a.startTime.localeCompare(b.startTime);
-    });
-    onData(sorted);
+    const merged = new Map<string, Shift>([...teamMap, ...assignedMap]);
+    onData(
+      Array.from(merged.values()).sort((a, b) =>
+        a.date !== b.date ? a.date.localeCompare(b.date) : a.startTime.localeCompare(b.startTime),
+      ),
+    );
   };
-
+  const onErr = (error: unknown) => {
+    try {
+      handleFirestoreError(error, OperationType.LIST, 'shifts');
+    } catch (e) {
+      onError(e);
+    }
+  };
   const unsubTeam = onSnapshot(
     query(collection(db, 'shifts'), where('visibility', '==', 'team')),
     (snap) => {
@@ -302,15 +437,8 @@ export function subscribeShifts(
       });
       emit();
     },
-    (error) => {
-      try {
-        handleFirestoreError(error, OperationType.LIST, 'shifts');
-      } catch (e) {
-        onError(e);
-      }
-    },
+    onErr,
   );
-
   const unsubAssigned = onSnapshot(
     query(collection(db, 'shifts'), where('assignedUid', '==', uid)),
     (snap) => {
@@ -321,15 +449,8 @@ export function subscribeShifts(
       });
       emit();
     },
-    (error) => {
-      try {
-        handleFirestoreError(error, OperationType.LIST, 'shifts');
-      } catch (e) {
-        onError(e);
-      }
-    },
+    onErr,
   );
-
   return () => {
     unsubTeam();
     unsubAssigned();
@@ -342,44 +463,33 @@ export function subscribeScheduleChanges(
   onData: (items: ScheduleChangeRequest[]) => void,
   onError: (err: unknown) => void,
 ): Unsubscribe {
+  const byUpdatedDesc = (a: ScheduleChangeRequest, b: ScheduleChangeRequest) =>
+    tsSeconds(b.updatedAt ?? b.createdAt) - tsSeconds(a.updatedAt ?? a.createdAt);
+
   if (isManager) {
-    return onSnapshot(
+    return subscribeCollection(
       collection(db, 'scheduleChanges'),
-      (snap) => {
-        const list = snap.docs
-          .map(mapScheduleChange)
-          .sort(
-            (a, b) =>
-              tsSeconds(b.updatedAt ?? b.createdAt) -
-              tsSeconds(a.updatedAt ?? a.createdAt),
-          );
-        onData(list);
-      },
-      (error) => {
-        try {
-          handleFirestoreError(error, OperationType.LIST, 'scheduleChanges');
-        } catch (e) {
-          onError(e);
-        }
-      },
+      'scheduleChanges',
+      mapScheduleChange,
+      byUpdatedDesc,
+      onData,
+      onError,
     );
   }
 
   const reqMap = new Map<string, ScheduleChangeRequest>();
   const swapMap = new Map<string, ScheduleChangeRequest>();
-
   const emit = () => {
-    const merged = new Map<string, ScheduleChangeRequest>();
-    reqMap.forEach((v, k) => merged.set(k, v));
-    swapMap.forEach((v, k) => merged.set(k, v));
-    const list = Array.from(merged.values()).sort(
-      (a, b) =>
-        tsSeconds(b.updatedAt ?? b.createdAt) -
-        tsSeconds(a.updatedAt ?? a.createdAt),
-    );
-    onData(list);
+    const merged = new Map<string, ScheduleChangeRequest>([...reqMap, ...swapMap]);
+    onData(Array.from(merged.values()).sort(byUpdatedDesc));
   };
-
+  const onErr = (error: unknown) => {
+    try {
+      handleFirestoreError(error, OperationType.LIST, 'scheduleChanges');
+    } catch (e) {
+      onError(e);
+    }
+  };
   const unsubReq = onSnapshot(
     query(collection(db, 'scheduleChanges'), where('requesterUid', '==', uid)),
     (snap) => {
@@ -390,20 +500,10 @@ export function subscribeScheduleChanges(
       });
       emit();
     },
-    (error) => {
-      try {
-        handleFirestoreError(error, OperationType.LIST, 'scheduleChanges');
-      } catch (e) {
-        onError(e);
-      }
-    },
+    onErr,
   );
-
   const unsubSwap = onSnapshot(
-    query(
-      collection(db, 'scheduleChanges'),
-      where('proposedAssigneeUid', '==', uid),
-    ),
+    query(collection(db, 'scheduleChanges'), where('proposedAssigneeUid', '==', uid)),
     (snap) => {
       swapMap.clear();
       snap.docs.forEach((d) => {
@@ -412,129 +512,73 @@ export function subscribeScheduleChanges(
       });
       emit();
     },
-    (error) => {
-      try {
-        handleFirestoreError(error, OperationType.LIST, 'scheduleChanges');
-      } catch (e) {
-        onError(e);
-      }
-    },
+    onErr,
   );
-
   return () => {
     unsubReq();
     unsubSwap();
   };
 }
 
-export function subscribeShiftReports(
+export const subscribeShiftReports = (
   uid: string,
   isManager: boolean,
   onData: (items: ShiftReport[]) => void,
   onError: (err: unknown) => void,
-): Unsubscribe {
-  const q = isManager
-    ? collection(db, 'shiftReports')
-    : query(collection(db, 'shiftReports'), where('staffUid', '==', uid));
-  return onSnapshot(
-    q,
-    (snap) => {
-      const list = snap.docs
-        .map(mapShiftReport)
-        .sort((a, b) => b.date.localeCompare(a.date));
-      onData(list);
-    },
-    (error) => {
-      try {
-        handleFirestoreError(error, OperationType.LIST, 'shiftReports');
-      } catch (e) {
-        onError(e);
-      }
-    },
+): Unsubscribe =>
+  subscribeCollection(
+    isManager ? collection(db, 'shiftReports') : query(collection(db, 'shiftReports'), where('staffUid', '==', uid)),
+    'shiftReports',
+    mapShiftReport,
+    (a, b) => b.date.localeCompare(a.date),
+    onData,
+    onError,
   );
-}
 
-export function subscribeShiftSubmissions(
+export const subscribeShiftSubmissions = (
   uid: string,
   isManager: boolean,
   onData: (items: ShiftSubmission[]) => void,
   onError: (err: unknown) => void,
-): Unsubscribe {
-  const q = isManager
-    ? collection(db, 'shiftSubmissions')
-    : query(collection(db, 'shiftSubmissions'), where('staffUid', '==', uid));
-  return onSnapshot(
-    q,
-    (snap) => {
-      const list = snap.docs.map(mapShiftSubmission).sort((a, b) => {
-        if (a.date !== b.date) return a.date.localeCompare(b.date);
-        return a.startTime.localeCompare(b.startTime);
-      });
-      onData(list);
-    },
-    (error) => {
-      try {
-        handleFirestoreError(error, OperationType.LIST, 'shiftSubmissions');
-      } catch (e) {
-        onError(e);
-      }
-    },
+): Unsubscribe =>
+  subscribeCollection(
+    isManager ? collection(db, 'shiftSubmissions') : query(collection(db, 'shiftSubmissions'), where('staffUid', '==', uid)),
+    'shiftSubmissions',
+    mapShiftSubmission,
+    (a, b) => (a.date !== b.date ? a.date.localeCompare(b.date) : a.startTime.localeCompare(b.startTime)),
+    onData,
+    onError,
   );
-}
 
-export function subscribeTimeOffRequests(
+export const subscribeTimeOffRequests = (
   uid: string,
   isManager: boolean,
   onData: (items: TimeOffRequest[]) => void,
   onError: (err: unknown) => void,
-): Unsubscribe {
-  const q = isManager
-    ? collection(db, 'timeOffRequests')
-    : query(collection(db, 'timeOffRequests'), where('staffUid', '==', uid));
-  return onSnapshot(
-    q,
-    (snap) => {
-      const list = snap.docs
-        .map(mapTimeOffRequest)
-        .sort((a, b) => tsSeconds(b.createdAt) - tsSeconds(a.createdAt));
-      onData(list);
-    },
-    (error) => {
-      try {
-        handleFirestoreError(error, OperationType.LIST, 'timeOffRequests');
-      } catch (e) {
-        onError(e);
-      }
-    },
+): Unsubscribe =>
+  subscribeCollection(
+    isManager ? collection(db, 'timeOffRequests') : query(collection(db, 'timeOffRequests'), where('staffUid', '==', uid)),
+    'timeOffRequests',
+    mapTimeOffRequest,
+    (a, b) => tsSeconds(b.createdAt) - tsSeconds(a.createdAt),
+    onData,
+    onError,
   );
-}
 
-export function subscribeNotifications(
+export const subscribeNotifications = (
   uid: string,
   isManager: boolean,
   onData: (items: PushNotificationRecord[]) => void,
   onError: (err: unknown) => void,
-): Unsubscribe {
-  const q = isManager
-    ? collection(db, 'notifications')
-    : query(collection(db, 'notifications'), where('recipientUid', '==', uid));
-  return onSnapshot(
-    q,
-    (snap) => {
-      const list = snap.docs
-        .map(mapNotification)
-        .sort((a, b) => tsSeconds(b.createdAt) - tsSeconds(a.createdAt));
-      onData(list);
-    },
-    (error) => {
-      try {
-        handleFirestoreError(error, OperationType.LIST, 'notifications');
-      } catch (e) {
-        onError(e);
-      }
-    },
+): Unsubscribe =>
+  subscribeCollection(
+    isManager ? collection(db, 'notifications') : query(collection(db, 'notifications'), where('recipientUid', '==', uid)),
+    'notifications',
+    mapNotification,
+    (a, b) => tsSeconds(b.createdAt) - tsSeconds(a.createdAt),
+    onData,
+    onError,
   );
-}
 
 export function subscribeUserProfile(
   uid: string,
@@ -543,59 +587,53 @@ export function subscribeUserProfile(
   onData: (profile: UserProfile) => void,
   onWarning?: (error: unknown) => void,
 ): Unsubscribe {
-  const isBootstrapAdmin =
-    email.trim().toLowerCase() === BOOTSTRAPPED_ADMIN_EMAIL;
+  const isBootstrapAdmin = email.trim().toLowerCase() === BOOTSTRAPPED_ADMIN_EMAIL;
   let latestUser: UserProfile = initialProfile;
   let hasManagerDoc = false;
-
   const emit = () => {
-    const effectiveRole =
-      isBootstrapAdmin || hasManagerDoc ? UserRole.MANAGER : latestUser.role;
-    onData({ ...latestUser, role: effectiveRole });
+    const role = isBootstrapAdmin || hasManagerDoc ? UserRole.MANAGER : latestUser.role;
+    onData({ ...latestUser, role });
   };
-
   const unsubUser = onSnapshot(
     doc(db, 'users', uid),
     (snap) => {
       const parsed = mapUserProfile(uid, snap.data());
-      if (parsed) {
-        latestUser = parsed;
-      }
+      if (parsed) latestUser = parsed;
       emit();
     },
-    (error) => {
-      onWarning?.(error);
-    },
+    (error) => onWarning?.(error),
   );
-
   const unsubManager = onSnapshot(
     doc(db, 'managers', uid),
     (snap) => {
       hasManagerDoc = snap.exists();
       emit();
     },
-    (error) => {
-      onWarning?.(error);
-    },
+    (error) => onWarning?.(error),
   );
-
   return () => {
     unsubUser();
     unsubManager();
   };
 }
 
-// --- User Provisioning & Preferences ---
+// --- Provisioning & Preferences (Rust-Native on Desktop, Web SDK Fallback) ---
 
-export async function ensureVerifiedUserProvisioned(
-  user: User,
-): Promise<UserProfile> {
-  const uid = user.uid;
+export async function ensureVerifiedUserProvisioned(user: User): Promise<UserProfile> {
   const email = (user.email ?? 'staff@cadence.app').trim();
-  const isBootstrapAdmin = email.toLowerCase() === BOOTSTRAPPED_ADMIN_EMAIL;
+  if (isTauriDesktop()) {
+    const idToken = await user.getIdToken();
+    const rustProfile = await invokeRepoEnsureVerifiedUserProvisioned({
+      idToken,
+      uid: user.uid,
+      email,
+      displayName: user.displayName ?? '',
+    });
+    return { ...rustProfile, createdAt: null, updatedAt: null };
+  }
 
+  const uid = user.uid;
   const userRef = doc(db, 'users', uid);
-  const managerRef = doc(db, 'managers', uid);
   const staffRef = doc(db, 'staffDirectory', uid);
 
   let userSnap;
@@ -607,48 +645,47 @@ export async function ensureVerifiedUserProvisioned(
 
   let managerExists = false;
   try {
-    const mSnap = await getDoc(managerRef);
-    managerExists = mSnap.exists();
+    managerExists = (await getDoc(doc(db, 'managers', uid))).exists();
   } catch {
     managerExists = false;
   }
 
-  const existingProfile = userSnap.exists()
-    ? mapUserProfile(uid, userSnap.data())
-    : null;
-
+  const existing = userSnap.exists() ? mapUserProfile(uid, userSnap.data()) : null;
   const effectiveRole: UserRole =
-    isBootstrapAdmin || managerExists
+    email.toLowerCase() === BOOTSTRAPPED_ADMIN_EMAIL || managerExists
       ? UserRole.MANAGER
-      : existingProfile?.role ?? UserRole.STAFF;
+      : existing?.role ?? UserRole.STAFF;
 
-  const displayName =
-    existingProfile?.displayName?.trim() ||
+  const cleanDisplayName = (
+    existing?.displayName?.trim() ||
     user.displayName?.trim() ||
     email.split('@')[0]?.trim() ||
-    'Team Member';
-
-  const cleanDisplayName = displayName.slice(0, 80);
+    'Team Member'
+  ).slice(0, 80);
 
   let profile: UserProfile;
-  if (!existingProfile) {
-    const batch = writeBatch(db);
-    batch.set(userRef, {
-      uid,
-      email,
-      displayName: cleanDisplayName,
-      role: effectiveRole,
-      department: 'Operations',
-      weeklyHoursTarget: 40,
-      pushNotificationsEnabled: true,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-    try {
-      await batch.commit();
-    } catch (e) {
-      handleFirestoreError(e, OperationType.CREATE, `users/${uid}`);
-    }
+  if (!existing) {
+    await commitOpsInChunks(
+      [
+        {
+          kind: 'set',
+          ref: userRef,
+          data: {
+            uid,
+            email,
+            displayName: cleanDisplayName,
+            role: effectiveRole,
+            department: 'Operations',
+            weeklyHoursTarget: 40,
+            pushNotificationsEnabled: true,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          },
+        },
+      ],
+      OperationType.CREATE,
+      `users/${uid}`,
+    );
     profile = {
       uid,
       email,
@@ -661,19 +698,14 @@ export async function ensureVerifiedUserProvisioned(
       updatedAt: null,
     };
   } else {
-    if (existingProfile.role !== effectiveRole) {
-      const batch = writeBatch(db);
-      batch.update(userRef, {
-        role: effectiveRole,
-        updatedAt: serverTimestamp(),
-      });
-      try {
-        await batch.commit();
-      } catch (e) {
-        handleFirestoreError(e, OperationType.UPDATE, `users/${uid}`);
-      }
+    if (existing.role !== effectiveRole) {
+      await commitOpsInChunks(
+        [{ kind: 'update', ref: userRef, data: { role: effectiveRole, updatedAt: serverTimestamp() } }],
+        OperationType.UPDATE,
+        `users/${uid}`,
+      );
     }
-    profile = { ...existingProfile, role: effectiveRole };
+    profile = { ...existing, role: effectiveRole };
   }
 
   let staffSnap;
@@ -684,37 +716,35 @@ export async function ensureVerifiedUserProvisioned(
   }
 
   if (!staffSnap.exists()) {
-    const batch = writeBatch(db);
-    batch.set(staffRef, {
-      uid,
-      displayName: profile.displayName,
-      role: effectiveRole,
-      department: profile.department,
-      totalHoursWorked: 0,
-      scheduledHoursThisWeek: 0,
-      weeklyHoursTarget: profile.weeklyHoursTarget,
-      lastAssignedAt: '',
-      isSampleRoster: false,
-      updatedAt: serverTimestamp(),
-    });
+    await commitOpsInChunks(
+      [
+        {
+          kind: 'set',
+          ref: staffRef,
+          data: {
+            uid,
+            displayName: profile.displayName,
+            role: effectiveRole,
+            department: profile.department,
+            totalHoursWorked: 0,
+            scheduledHoursThisWeek: 0,
+            weeklyHoursTarget: profile.weeklyHoursTarget,
+            lastAssignedAt: '',
+            isSampleRoster: false,
+            updatedAt: serverTimestamp(),
+          },
+        },
+      ],
+      OperationType.CREATE,
+      `staffDirectory/${uid}`,
+    );
+  } else if (parseUserRole(staffSnap.data()?.role) !== effectiveRole) {
     try {
+      const batch = writeBatch(db);
+      batch.update(staffRef, { role: effectiveRole, updatedAt: serverTimestamp() });
       await batch.commit();
-    } catch (e) {
-      handleFirestoreError(e, OperationType.CREATE, `staffDirectory/${uid}`);
-    }
-  } else {
-    const existingStaffRole = parseUserRole(staffSnap.data()?.role);
-    if (existingStaffRole !== effectiveRole) {
-      try {
-        const batch = writeBatch(db);
-        batch.update(staffRef, {
-          role: effectiveRole,
-          updatedAt: serverTimestamp(),
-        });
-        await batch.commit();
-      } catch {
-        // Non-manager staff cannot mutate role; safe to ignore if restricted
-      }
+    } catch {
+      // Non-manager staff cannot mutate role directly
     }
   }
 
@@ -728,33 +758,50 @@ export async function updateUserPreferences(
   weeklyHoursTarget: number,
   pushNotificationsEnabled: boolean,
 ): Promise<void> {
-  const currentUid = requireUserId();
-  if (currentUid !== uid) {
-    throw new Error('Cannot update another user preferences.');
+  const desktop = await requireDesktopToken();
+  if (desktop) {
+    await invokeRepoUpdateUserPreferences({
+      idToken: desktop.idToken,
+      actorUid: desktop.uid,
+      uid,
+      displayName,
+      department,
+      weeklyHoursTarget,
+      pushNotificationsEnabled,
+    });
+    return;
   }
+  if (requireUserId() !== uid) throw new Error('Cannot update another user preferences.');
   const cleanName = displayName.trim().slice(0, 80);
   const cleanDept = department.trim().slice(0, 60);
   const clampedTarget = Math.min(80, Math.max(1, weeklyHoursTarget));
-
-  const batch = writeBatch(db);
-  batch.update(doc(db, 'users', uid), {
-    displayName: cleanName,
-    department: cleanDept,
-    weeklyHoursTarget: clampedTarget,
-    pushNotificationsEnabled,
-    updatedAt: serverTimestamp(),
-  });
-  batch.update(doc(db, 'staffDirectory', uid), {
-    displayName: cleanName,
-    department: cleanDept,
-    weeklyHoursTarget: clampedTarget,
-    updatedAt: serverTimestamp(),
-  });
-  try {
-    await batch.commit();
-  } catch (e) {
-    handleFirestoreError(e, OperationType.UPDATE, `users/${uid}`);
-  }
+  await commitOpsInChunks(
+    [
+      {
+        kind: 'update',
+        ref: doc(db, 'users', uid),
+        data: {
+          displayName: cleanName,
+          department: cleanDept,
+          weeklyHoursTarget: clampedTarget,
+          pushNotificationsEnabled,
+          updatedAt: serverTimestamp(),
+        },
+      },
+      {
+        kind: 'update',
+        ref: doc(db, 'staffDirectory', uid),
+        data: {
+          displayName: cleanName,
+          department: cleanDept,
+          weeklyHoursTarget: clampedTarget,
+          updatedAt: serverTimestamp(),
+        },
+      },
+    ],
+    OperationType.UPDATE,
+    `users/${uid}`,
+  );
 }
 
 // --- Shifts ---
@@ -772,54 +819,63 @@ export async function createShift(
   fairnessNote: string,
   createdBy: string,
 ): Promise<string> {
-  const actorUid = requireUserId();
-  const id = newId('shift');
-  const duration = computeShiftHours(startTime, endTime);
-  const effectiveUid = status === ShiftStatus.OPEN ? '' : assignedUid;
-  const effectiveName = status === ShiftStatus.OPEN ? '' : assignedName;
-  const cleanTitle = (title.trim() || 'Assigned Shift').slice(0, 120);
-
-  const batch = writeBatch(db);
-  batch.set(doc(db, 'shifts', id), {
-    id,
-    title: cleanTitle,
-    department: department.trim().slice(0, 60),
-    date,
-    startTime,
-    endTime,
-    durationHours: duration,
-    assignedUid: effectiveUid,
-    assignedName: effectiveName,
-    candidateUids: candidateUids.slice(0, 20),
-    status,
-    visibility: 'team',
-    fairnessNote: fairnessNote.slice(0, 300),
-    createdBy: createdBy || actorUid,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-
-  if (effectiveUid && effectiveUid !== actorUid && status !== ShiftStatus.OPEN) {
-    const notifId = newId('ntf');
-    batch.set(doc(db, 'notifications', notifId), {
-      id: notifId,
-      recipientUid: effectiveUid,
-      title: 'New Shift Assigned',
-      message: `${cleanTitle} on ${date} (${startTime}-${endTime}) was assigned to you.`.slice(0, 400),
-      category: NotificationCategory.SHIFT_ASSIGNED,
-      relatedShiftId: id,
-      isRead: false,
-      actorUid,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
+  const desktop = await requireDesktopToken();
+  if (desktop) {
+    return invokeRepoCreateShift({
+      idToken: desktop.idToken,
+      actorUid: desktop.uid,
+      title,
+      department,
+      date,
+      startTime,
+      endTime,
+      assignedUid,
+      assignedName,
+      candidateUids,
+      status,
+      fairnessNote,
+      createdBy,
     });
   }
-
-  try {
-    await batch.commit();
-  } catch (e) {
-    handleFirestoreError(e, OperationType.CREATE, `shifts/${id}`);
+  const actorUid = requireUserId();
+  const id = newId('shift');
+  const cleanTitle = (title.trim() || 'Assigned Shift').slice(0, 120);
+  const effectiveUid = status === ShiftStatus.OPEN ? '' : assignedUid;
+  const ops: BatchOp[] = [
+    {
+      kind: 'set',
+      ref: doc(db, 'shifts', id),
+      data: makeShiftData({
+        id,
+        title: cleanTitle,
+        department,
+        date,
+        startTime,
+        endTime,
+        durationHours: computeShiftHours(startTime, endTime),
+        assignedUid,
+        assignedName,
+        candidateUids,
+        status,
+        fairnessNote,
+        createdBy: createdBy || actorUid,
+        includeCreatedAt: true,
+      }),
+    },
+  ];
+  if (effectiveUid && effectiveUid !== actorUid && status !== ShiftStatus.OPEN) {
+    ops.push(
+      makeNotificationOp(
+        effectiveUid,
+        'New Shift Assigned',
+        `${cleanTitle} on ${date} (${startTime}-${endTime}) was assigned to you.`,
+        NotificationCategory.SHIFT_ASSIGNED,
+        id,
+        actorUid,
+      ),
+    );
   }
+  await commitOpsInChunks(ops, OperationType.CREATE, `shifts/${id}`);
   return id;
 }
 
@@ -835,89 +891,92 @@ export async function updateShift(
   status: ShiftStatus,
   fairnessNote: string,
 ): Promise<void> {
+  const desktop = await requireDesktopToken();
+  if (desktop) {
+    await invokeRepoUpdateShift({
+      idToken: desktop.idToken,
+      actorUid: desktop.uid,
+      shiftId,
+      title,
+      department,
+      date,
+      startTime,
+      endTime,
+      assignedUid,
+      assignedName,
+      status,
+      fairnessNote,
+    });
+    return;
+  }
   const actorUid = requireUserId();
   const docRef = doc(db, 'shifts', shiftId);
-  let previousShift: Shift | null = null;
+  let prev: Shift | null = null;
   try {
     const prevSnap = await getDoc(docRef);
-    if (prevSnap.exists()) {
-      previousShift = mapShift(prevSnap as QueryDocumentSnapshot<DocumentData>);
-    }
+    if (prevSnap.exists()) prev = mapShift(prevSnap as QueryDocumentSnapshot<DocumentData>);
   } catch {
-    previousShift = null;
+    prev = null;
   }
-
-  const duration = computeShiftHours(startTime, endTime);
   const effectiveUid = status === ShiftStatus.OPEN ? '' : assignedUid;
-  const effectiveName = status === ShiftStatus.OPEN ? '' : assignedName;
   const cleanTitle = (title.trim() || 'Assigned Shift').slice(0, 120);
-
-  const batch = writeBatch(db);
-  batch.update(docRef, {
-    title: cleanTitle,
-    department: department.trim().slice(0, 60),
-    date,
-    startTime,
-    endTime,
-    durationHours: duration,
-    assignedUid: effectiveUid,
-    assignedName: effectiveName,
-    status,
-    fairnessNote: fairnessNote.slice(0, 300),
-    updatedAt: serverTimestamp(),
-  });
-
+  const ops: BatchOp[] = [
+    {
+      kind: 'update',
+      ref: docRef,
+      data: makeShiftData({
+        id: shiftId,
+        title: cleanTitle,
+        department,
+        date,
+        startTime,
+        endTime,
+        durationHours: computeShiftHours(startTime, endTime),
+        assignedUid,
+        assignedName,
+        candidateUids: [],
+        status,
+        fairnessNote,
+        createdBy: actorUid,
+        includeCreatedAt: false,
+      }),
+    },
+  ];
   if (effectiveUid && effectiveUid !== actorUid && status !== ShiftStatus.OPEN) {
-    const isNewAssignment =
-      !previousShift ||
-      previousShift.assignedUid !== effectiveUid ||
-      previousShift.status === ShiftStatus.OPEN;
-    const scheduleChanged =
-      !!previousShift &&
-      (previousShift.date !== date ||
-        previousShift.startTime !== startTime ||
-        previousShift.endTime !== endTime ||
-        previousShift.title !== cleanTitle);
-
-    if (isNewAssignment || scheduleChanged) {
-      const notifId = newId('ntf');
-      const notifTitle = isNewAssignment
-        ? 'New Shift Assigned'
-        : 'Shift Schedule Updated';
-      const notifMessage = isNewAssignment
-        ? `${cleanTitle} on ${date} (${startTime}-${endTime}) was assigned to you.`
-        : `Your shift ${cleanTitle} was updated to ${date} (${startTime}-${endTime}).`;
-      batch.set(doc(db, 'notifications', notifId), {
-        id: notifId,
-        recipientUid: effectiveUid,
-        title: notifTitle,
-        message: notifMessage.slice(0, 400),
-        category: NotificationCategory.SHIFT_ASSIGNED,
-        relatedShiftId: shiftId,
-        isRead: false,
-        actorUid,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
+    const isNew = !prev || prev.assignedUid !== effectiveUid || prev.status === ShiftStatus.OPEN;
+    const changed =
+      !!prev &&
+      (prev.date !== date || prev.startTime !== startTime || prev.endTime !== endTime || prev.title !== cleanTitle);
+    if (isNew || changed) {
+      ops.push(
+        makeNotificationOp(
+          effectiveUid,
+          isNew ? 'New Shift Assigned' : 'Shift Schedule Updated',
+          isNew
+            ? `${cleanTitle} on ${date} (${startTime}-${endTime}) was assigned to you.`
+            : `Your shift ${cleanTitle} was updated to ${date} (${startTime}-${endTime}).`,
+          NotificationCategory.SHIFT_ASSIGNED,
+          shiftId,
+          actorUid,
+        ),
+      );
     }
   }
-
-  try {
-    await batch.commit();
-  } catch (e) {
-    handleFirestoreError(e, OperationType.UPDATE, `shifts/${shiftId}`);
-  }
+  await commitOpsInChunks(ops, OperationType.UPDATE, `shifts/${shiftId}`);
 }
 
 export async function deleteShift(shiftId: string): Promise<void> {
-  requireUserId();
-  const batch = writeBatch(db);
-  batch.delete(doc(db, 'shifts', shiftId));
-  try {
-    await batch.commit();
-  } catch (e) {
-    handleFirestoreError(e, OperationType.DELETE, `shifts/${shiftId}`);
+  const desktop = await requireDesktopToken();
+  if (desktop) {
+    await invokeRepoDeleteShift({ idToken: desktop.idToken, shiftId });
+    return;
   }
+  requireUserId();
+  await commitOpsInChunks(
+    [{ kind: 'delete', ref: doc(db, 'shifts', shiftId) }],
+    OperationType.DELETE,
+    `shifts/${shiftId}`,
+  );
 }
 
 // --- Schedule Change Requests & Approvals ---
@@ -933,46 +992,64 @@ export async function submitScheduleChangeRequest(
   proposedAssigneeUid: string,
   proposedAssigneeName: string,
   reason: string,
+  isManager = false,
 ): Promise<string> {
-  requireUserId();
-  const id = newId('chg');
-  const batch = writeBatch(db);
-  batch.set(doc(db, 'scheduleChanges', id), {
-    id,
-    shiftId: shift.id,
-    shiftTitle: shift.title,
-    requesterUid,
-    requesterName,
-    type,
-    currentDate: shift.date,
-    currentStartTime: shift.startTime,
-    currentEndTime: shift.endTime,
-    proposedDate,
-    proposedStartTime,
-    proposedEndTime,
-    proposedAssigneeUid,
-    proposedAssigneeName,
-    reason: reason.trim().slice(0, 400),
-    status: ApprovalStatus.PENDING,
-    reviewedByUid: '',
-    reviewedByName: '',
-    reviewNote: '',
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-
-  if (type !== ScheduleChangeType.CLAIM && shift.assignedUid === requesterUid) {
-    batch.update(doc(db, 'shifts', shift.id), {
-      status: ShiftStatus.PENDING_CHANGE,
-      updatedAt: serverTimestamp(),
+  const desktop = await requireDesktopToken();
+  if (desktop) {
+    return invokeRepoSubmitScheduleChange({
+      idToken: desktop.idToken,
+      shift,
+      requesterUid,
+      requesterName,
+      isManager,
+      requestType: type,
+      proposedDate,
+      proposedStartTime,
+      proposedEndTime,
+      proposedAssigneeUid,
+      proposedAssigneeName,
+      reason,
     });
   }
-
-  try {
-    await batch.commit();
-  } catch (e) {
-    handleFirestoreError(e, OperationType.CREATE, `scheduleChanges/${id}`);
+  requireUserId();
+  const id = newId('chg');
+  const ops: BatchOp[] = [
+    {
+      kind: 'set',
+      ref: doc(db, 'scheduleChanges', id),
+      data: {
+        id,
+        shiftId: shift.id,
+        shiftTitle: shift.title,
+        requesterUid,
+        requesterName,
+        type,
+        currentDate: shift.date,
+        currentStartTime: shift.startTime,
+        currentEndTime: shift.endTime,
+        proposedDate,
+        proposedStartTime,
+        proposedEndTime,
+        proposedAssigneeUid,
+        proposedAssigneeName,
+        reason: reason.trim().slice(0, 400),
+        status: ApprovalStatus.PENDING,
+        reviewedByUid: '',
+        reviewedByName: '',
+        reviewNote: '',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      },
+    },
+  ];
+  if (type !== ScheduleChangeType.CLAIM && shift.assignedUid === requesterUid) {
+    ops.push({
+      kind: 'update',
+      ref: doc(db, 'shifts', shift.id),
+      data: { status: ShiftStatus.PENDING_CHANGE, updatedAt: serverTimestamp() },
+    });
   }
+  await commitOpsInChunks(ops, OperationType.CREATE, `scheduleChanges/${id}`);
   return id;
 }
 
@@ -1022,81 +1099,72 @@ export async function decideScheduleChange(
   reviewerName: string,
   reviewNote: string,
 ): Promise<void> {
-  requireUserId();
-  const batch = writeBatch(db);
-  const typeLabel = req.type.replace('_', ' ');
-
-  batch.update(doc(db, 'scheduleChanges', req.id), {
-    status: decision,
-    reviewedByUid: reviewerUid,
-    reviewedByName: reviewerName,
-    reviewNote: reviewNote.trim().slice(0, 300),
-    updatedAt: serverTimestamp(),
-  });
-
-  if (shift) {
-    const shiftRef = doc(db, 'shifts', shift.id);
-    if (decision === ApprovalStatus.APPROVED) {
-      batch.update(shiftRef, buildShiftApprovalUpdates(req, shift));
-    } else {
-      const restored = shift.assignedUid.trim()
-        ? ShiftStatus.SCHEDULED
-        : ShiftStatus.OPEN;
-      batch.update(shiftRef, {
-        status: restored,
-        updatedAt: serverTimestamp(),
-      });
-    }
+  const desktop = await requireDesktopToken();
+  if (desktop) {
+    await invokeRepoDecideScheduleChange({
+      idToken: desktop.idToken,
+      req,
+      linkedShift: shift ?? null,
+      decision,
+      reviewerUid,
+      reviewerName,
+      reviewNote,
+    });
+    return;
   }
-
+  requireUserId();
+  const typeLabel = req.type.replace('_', ' ');
   const isApproved = decision === ApprovalStatus.APPROVED;
-  const notifId = newId('ntf');
-  batch.set(doc(db, 'notifications', notifId), {
-    id: notifId,
-    recipientUid: req.requesterUid,
-    title: isApproved ? 'Schedule Change Approved' : 'Schedule Change Denied',
-    message: (isApproved
-      ? `Your ${typeLabel} for ${req.shiftTitle} (${req.proposedDate} ${req.proposedStartTime}-${req.proposedEndTime}) was approved by ${reviewerName}.`
-      : `Your ${typeLabel} for ${req.shiftTitle} was denied by ${reviewerName}.${reviewNote.trim() ? ` Note: ${reviewNote.trim()}` : ''}`
-    ).slice(0, 400),
-    category: isApproved
-      ? NotificationCategory.SHIFT_APPROVED
-      : NotificationCategory.SHIFT_DENIED,
-    relatedShiftId: req.shiftId,
-    isRead: false,
-    actorUid: reviewerUid,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-
-  if (
-    isApproved &&
-    req.proposedAssigneeUid &&
-    req.proposedAssigneeUid !== req.requesterUid
-  ) {
-    const swapNotifId = newId('ntf');
-    batch.set(doc(db, 'notifications', swapNotifId), {
-      id: swapNotifId,
-      recipientUid: req.proposedAssigneeUid,
-      title: 'Shift Reassigned to You',
-      message: `${req.shiftTitle} on ${req.proposedDate} (${req.proposedStartTime}-${req.proposedEndTime}) was approved for you by ${reviewerName}.`.slice(
-        0,
-        400,
-      ),
-      category: NotificationCategory.SHIFT_ASSIGNED,
-      relatedShiftId: req.shiftId,
-      isRead: false,
-      actorUid: reviewerUid,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
+  const ops: BatchOp[] = [
+    {
+      kind: 'update',
+      ref: doc(db, 'scheduleChanges', req.id),
+      data: {
+        status: decision,
+        reviewedByUid: reviewerUid,
+        reviewedByName: reviewerName,
+        reviewNote: reviewNote.trim().slice(0, 300),
+        updatedAt: serverTimestamp(),
+      },
+    },
+  ];
+  if (shift) {
+    ops.push({
+      kind: 'update',
+      ref: doc(db, 'shifts', shift.id),
+      data: isApproved
+        ? buildShiftApprovalUpdates(req, shift)
+        : {
+            status: shift.assignedUid.trim() ? ShiftStatus.SCHEDULED : ShiftStatus.OPEN,
+            updatedAt: serverTimestamp(),
+          },
     });
   }
-
-  try {
-    await batch.commit();
-  } catch (e) {
-    handleFirestoreError(e, OperationType.WRITE, `scheduleChanges/${req.id}`);
+  ops.push(
+    makeNotificationOp(
+      req.requesterUid,
+      isApproved ? 'Schedule Change Approved' : 'Schedule Change Denied',
+      isApproved
+        ? `Your ${typeLabel} for ${req.shiftTitle} (${req.proposedDate} ${req.proposedStartTime}-${req.proposedEndTime}) was approved by ${reviewerName}.`
+        : `Your ${typeLabel} for ${req.shiftTitle} was denied by ${reviewerName}.${reviewNote.trim() ? ` Note: ${reviewNote.trim()}` : ''}`,
+      isApproved ? NotificationCategory.SHIFT_APPROVED : NotificationCategory.SHIFT_DENIED,
+      req.shiftId,
+      reviewerUid,
+    ),
+  );
+  if (isApproved && req.proposedAssigneeUid && req.proposedAssigneeUid !== req.requesterUid) {
+    ops.push(
+      makeNotificationOp(
+        req.proposedAssigneeUid,
+        'Shift Reassigned to You',
+        `${req.shiftTitle} on ${req.proposedDate} (${req.proposedStartTime}-${req.proposedEndTime}) was approved for you by ${reviewerName}.`,
+        NotificationCategory.SHIFT_ASSIGNED,
+        req.shiftId,
+        reviewerUid,
+      ),
+    );
   }
+  await commitOpsInChunks(ops, OperationType.WRITE, `scheduleChanges/${req.id}`);
 }
 
 export async function acceptAllPendingChanges(
@@ -1105,91 +1173,60 @@ export async function acceptAllPendingChanges(
   reviewerUid: string,
   reviewerName: string,
 ): Promise<number> {
+  const desktop = await requireDesktopToken();
+  if (desktop) {
+    return invokeRepoAcceptAllPending({
+      idToken: desktop.idToken,
+      pendingRequests,
+      shifts,
+      reviewerUid,
+      reviewerName,
+    });
+  }
   requireUserId();
   if (pendingRequests.length === 0) return 0;
   const shiftMap = new Map(shifts.map((s) => [s.id, s]));
-
-  let batch = writeBatch(db);
-  let opCount = 0;
-
-  const flushIfNeeded = async (needed: number) => {
-    if (opCount + needed > CHUNK_SIZE) {
-      await batch.commit();
-      batch = writeBatch(db);
-      opCount = 0;
-    }
-  };
-
-  try {
-    for (const req of pendingRequests) {
-      const shift = shiftMap.get(req.shiftId);
-      const extraNotif =
-        Boolean(req.proposedAssigneeUid) &&
-        req.proposedAssigneeUid !== req.requesterUid;
-      const opsNeeded = 2 + (shift ? 1 : 0) + (extraNotif ? 1 : 0);
-      await flushIfNeeded(opsNeeded);
-
-      batch.update(doc(db, 'scheduleChanges', req.id), {
+  const ops: BatchOp[] = [];
+  for (const req of pendingRequests) {
+    const shift = shiftMap.get(req.shiftId);
+    ops.push({
+      kind: 'update',
+      ref: doc(db, 'scheduleChanges', req.id),
+      data: {
         status: ApprovalStatus.APPROVED,
         reviewedByUid: reviewerUid,
         reviewedByName: reviewerName,
         reviewNote: 'Approved via Accept All',
         updatedAt: serverTimestamp(),
-      });
-      opCount++;
-
-      if (shift) {
-        batch.update(
-          doc(db, 'shifts', shift.id),
-          buildShiftApprovalUpdates(req, shift),
-        );
-        opCount++;
-      }
-
-      const notifId = newId('ntf');
-      batch.set(doc(db, 'notifications', notifId), {
-        id: notifId,
-        recipientUid: req.requesterUid,
-        title: 'Schedule Change Approved',
-        message: `Your ${req.type.replace('_', ' ')} for ${req.shiftTitle} (${req.proposedDate} ${req.proposedStartTime}-${req.proposedEndTime}) was batch-approved by ${reviewerName}.`.slice(
-          0,
-          400,
+      },
+    });
+    if (shift) {
+      ops.push({ kind: 'update', ref: doc(db, 'shifts', shift.id), data: buildShiftApprovalUpdates(req, shift) });
+    }
+    ops.push(
+      makeNotificationOp(
+        req.requesterUid,
+        'Schedule Change Approved',
+        `Your ${req.type.replace('_', ' ')} for ${req.shiftTitle} (${req.proposedDate} ${req.proposedStartTime}-${req.proposedEndTime}) was batch-approved by ${reviewerName}.`,
+        NotificationCategory.SHIFT_APPROVED,
+        req.shiftId,
+        reviewerUid,
+      ),
+    );
+    if (req.proposedAssigneeUid && req.proposedAssigneeUid !== req.requesterUid) {
+      ops.push(
+        makeNotificationOp(
+          req.proposedAssigneeUid,
+          'Shift Reassigned to You',
+          `${req.shiftTitle} on ${req.proposedDate} (${req.proposedStartTime}-${req.proposedEndTime}) was approved for you by ${reviewerName}.`,
+          NotificationCategory.SHIFT_ASSIGNED,
+          req.shiftId,
+          reviewerUid,
         ),
-        category: NotificationCategory.SHIFT_APPROVED,
-        relatedShiftId: req.shiftId,
-        isRead: false,
-        actorUid: reviewerUid,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-      opCount++;
-
-      if (extraNotif) {
-        const swapNotifId = newId('ntf');
-        batch.set(doc(db, 'notifications', swapNotifId), {
-          id: swapNotifId,
-          recipientUid: req.proposedAssigneeUid,
-          title: 'Shift Reassigned to You',
-          message: `${req.shiftTitle} on ${req.proposedDate} (${req.proposedStartTime}-${req.proposedEndTime}) was approved for you by ${reviewerName}.`.slice(
-            0,
-            400,
-          ),
-          category: NotificationCategory.SHIFT_ASSIGNED,
-          relatedShiftId: req.shiftId,
-          isRead: false,
-          actorUid: reviewerUid,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
-        opCount++;
-      }
+      );
     }
-    if (opCount > 0) {
-      await batch.commit();
-    }
-  } catch (e) {
-    handleFirestoreError(e, OperationType.WRITE, 'scheduleChanges');
   }
+  await commitOpsInChunks(ops, OperationType.WRITE, 'scheduleChanges');
   return pendingRequests.length;
 }
 
@@ -1207,35 +1244,53 @@ export async function submitShiftReport(
   breakMinutes: number,
   handoffNotes: string,
 ): Promise<string> {
+  const desktop = await requireDesktopToken();
+  if (desktop) {
+    return invokeRepoSubmitShiftReport({
+      idToken: desktop.idToken,
+      shiftId,
+      shiftTitle,
+      staffUid,
+      staffName,
+      department,
+      date,
+      actualStartTime,
+      actualEndTime,
+      breakMinutes,
+      handoffNotes,
+    });
+  }
   requireUserId();
   const id = newId('rep');
   const clampedBreak = Math.min(180, Math.max(0, Math.round(breakMinutes)));
-  const workedHours = computeShiftHours(actualStartTime, actualEndTime, clampedBreak);
-
-  const batch = writeBatch(db);
-  batch.set(doc(db, 'shiftReports', id), {
-    id,
-    shiftId,
-    shiftTitle: shiftTitle.trim().slice(0, 120),
-    staffUid,
-    staffName,
-    department: department.trim().slice(0, 60),
-    date,
-    actualStartTime,
-    actualEndTime,
-    breakMinutes: clampedBreak,
-    workedHours,
-    handoffNotes: handoffNotes.trim().slice(0, 600),
-    status: ShiftReportStatus.SUBMITTED,
-    verifiedByUid: '',
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-  try {
-    await batch.commit();
-  } catch (e) {
-    handleFirestoreError(e, OperationType.CREATE, `shiftReports/${id}`);
-  }
+  await commitOpsInChunks(
+    [
+      {
+        kind: 'set',
+        ref: doc(db, 'shiftReports', id),
+        data: {
+          id,
+          shiftId,
+          shiftTitle: shiftTitle.trim().slice(0, 120),
+          staffUid,
+          staffName,
+          department: department.trim().slice(0, 60),
+          date,
+          actualStartTime,
+          actualEndTime,
+          breakMinutes: clampedBreak,
+          workedHours: computeShiftHours(actualStartTime, actualEndTime, clampedBreak),
+          handoffNotes: handoffNotes.trim().slice(0, 600),
+          status: ShiftReportStatus.SUBMITTED,
+          verifiedByUid: '',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        },
+      },
+    ],
+    OperationType.CREATE,
+    `shiftReports/${id}`,
+  );
   return id;
 }
 
@@ -1246,254 +1301,251 @@ export async function verifyOrFlagShiftReport(
   staffEntry: StaffDirectoryEntry | undefined,
   linkedShift: Shift | undefined,
 ): Promise<void> {
+  const desktop = await requireDesktopToken();
+  if (desktop) {
+    await invokeRepoVerifyOrFlagReport({
+      idToken: desktop.idToken,
+      report,
+      status,
+      verifierUid,
+      staffEntry: staffEntry ?? null,
+      linkedShift: linkedShift ?? null,
+    });
+    return;
+  }
   requireUserId();
-  const batch = writeBatch(db);
-  batch.update(doc(db, 'shiftReports', report.id), {
-    status,
-    verifiedByUid: verifierUid,
-    updatedAt: serverTimestamp(),
-  });
-
-  if (
-    status === ShiftReportStatus.VERIFIED &&
-    report.status !== ShiftReportStatus.VERIFIED
-  ) {
+  const ops: BatchOp[] = [
+    {
+      kind: 'update',
+      ref: doc(db, 'shiftReports', report.id),
+      data: { status, verifiedByUid: verifierUid, updatedAt: serverTimestamp() },
+    },
+  ];
+  if (status === ShiftReportStatus.VERIFIED && report.status !== ShiftReportStatus.VERIFIED) {
     if (staffEntry) {
-      batch.update(doc(db, 'staffDirectory', staffEntry.uid), {
-        totalHoursWorked: round2(staffEntry.totalHoursWorked + report.workedHours),
-        updatedAt: serverTimestamp(),
+      ops.push({
+        kind: 'update',
+        ref: doc(db, 'staffDirectory', staffEntry.uid),
+        data: { totalHoursWorked: round2(staffEntry.totalHoursWorked + report.workedHours), updatedAt: serverTimestamp() },
       });
     }
     if (linkedShift && linkedShift.status !== ShiftStatus.COMPLETED) {
-      batch.update(doc(db, 'shifts', linkedShift.id), {
-        status: ShiftStatus.COMPLETED,
-        updatedAt: serverTimestamp(),
+      ops.push({
+        kind: 'update',
+        ref: doc(db, 'shifts', linkedShift.id),
+        data: { status: ShiftStatus.COMPLETED, updatedAt: serverTimestamp() },
       });
     }
   }
-
-  const notifId = newId('ntf');
-  batch.set(doc(db, 'notifications', notifId), {
-    id: notifId,
-    recipientUid: report.staffUid,
-    title:
+  ops.push(
+    makeNotificationOp(
+      report.staffUid,
+      status === ShiftReportStatus.VERIFIED ? 'Shift Report Verified' : 'Shift Report Flagged',
       status === ShiftReportStatus.VERIFIED
-        ? 'Shift Report Verified'
-        : 'Shift Report Flagged',
-    message: (status === ShiftReportStatus.VERIFIED
-      ? `Your ${formatHours(report.workedHours)}h shift report for ${report.shiftTitle} (${report.date}) was verified.`
-      : `Your shift report for ${report.shiftTitle} (${report.date}) was flagged for review.`
-    ).slice(0, 400),
-    category: NotificationCategory.REPORT_VERIFIED,
-    relatedShiftId: report.shiftId,
-    isRead: false,
-    actorUid: verifierUid,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-
-  try {
-    await batch.commit();
-  } catch (e) {
-    handleFirestoreError(e, OperationType.UPDATE, `shiftReports/${report.id}`);
-  }
+        ? `Your ${formatHours(report.workedHours)}h shift report for ${report.shiftTitle} (${report.date}) was verified.`
+        : `Your shift report for ${report.shiftTitle} (${report.date}) was flagged for review.`,
+      NotificationCategory.REPORT_VERIFIED,
+      report.shiftId,
+      verifierUid,
+    ),
+  );
+  await commitOpsInChunks(ops, OperationType.UPDATE, `shiftReports/${report.id}`);
 }
 
 // --- Notifications ---
 
-export async function markNotificationRead(
-  notificationId: string,
-  isRead: boolean,
-): Promise<void> {
+export async function markNotificationRead(notificationId: string, isRead: boolean): Promise<void> {
+  const desktop = await requireDesktopToken();
+  if (desktop) {
+    await invokeRepoMarkNotificationRead({ idToken: desktop.idToken, notificationId, isRead });
+    return;
+  }
   requireUserId();
-  const batch = writeBatch(db);
-  batch.update(doc(db, 'notifications', notificationId), {
-    isRead,
-    updatedAt: serverTimestamp(),
-  });
-  try {
-    await batch.commit();
-  } catch (e) {
-    handleFirestoreError(
-      e,
-      OperationType.UPDATE,
-      `notifications/${notificationId}`,
+  await commitOpsInChunks(
+    [{ kind: 'update', ref: doc(db, 'notifications', notificationId), data: { isRead, updatedAt: serverTimestamp() } }],
+    OperationType.UPDATE,
+    `notifications/${notificationId}`,
+  );
+}
+
+export async function markAllNotificationsRead(notifications: PushNotificationRecord[]): Promise<void> {
+  const desktop = await requireDesktopToken();
+  if (desktop) {
+    await invokeRepoMarkAllNotificationsRead({ idToken: desktop.idToken, notifications });
+    return;
+  }
+  requireUserId();
+  const ops: BatchOp[] = notifications
+    .filter((n) => !n.isRead)
+    .map((n) => ({
+      kind: 'update',
+      ref: doc(db, 'notifications', n.id),
+      data: { isRead: true, updatedAt: serverTimestamp() },
+    }));
+  await commitOpsInChunks(ops, OperationType.UPDATE, 'notifications');
+}
+
+export async function sendTestPushNotification(uid: string, displayName: string): Promise<void> {
+  const desktop = await requireDesktopToken();
+  if (desktop) {
+    await invokeRepoSendTestNotification({
+      idToken: desktop.idToken,
+      actorUid: desktop.uid,
+      recipientUid: uid,
+      displayName,
+    });
+    return;
+  }
+  const actorUid = requireUserId();
+  const op = makeNotificationOp(
+    uid,
+    'Cadence Alert Test',
+    `Real-time notification channel active for ${displayName}.`,
+    NotificationCategory.SHIFT_ASSIGNED,
+    '',
+    actorUid,
+  );
+  await commitOpsInChunks([op], OperationType.CREATE, 'notifications');
+}
+
+// --- Fairness Plans & Weekly Schedule (Rust Atomic Commit on Desktop) ---
+
+async function commitAssignmentPlanBatch(
+  items: Array<FairnessArrangementItem | OpenShiftAssignmentItem>,
+  actorUid: string,
+  title: string,
+  category: NotificationCategory,
+  buildMsg: (item: FairnessArrangementItem | OpenShiftAssignmentItem) => string,
+): Promise<number> {
+  requireUserId();
+  if (items.length === 0) return 0;
+  const nowIso = new Date().toISOString();
+  const ops: BatchOp[] = [];
+  for (const item of items) {
+    ops.push(
+      {
+        kind: 'update',
+        ref: doc(db, 'shifts', item.shift.id),
+        data: {
+          assignedUid: item.chosenUid,
+          assignedName: item.chosenName,
+          status: ShiftStatus.SCHEDULED,
+          fairnessNote: item.reason.slice(0, 300),
+          updatedAt: serverTimestamp(),
+        },
+      },
+      {
+        kind: 'update',
+        ref: doc(db, 'staffDirectory', item.chosenUid),
+        data: { lastAssignedAt: nowIso, updatedAt: serverTimestamp() },
+      },
+      makeNotificationOp(item.chosenUid, title, buildMsg(item), category, item.shift.id, actorUid),
     );
   }
+  await commitOpsInChunks(ops, OperationType.WRITE, 'shifts');
+  return items.length;
 }
 
-export async function markAllNotificationsRead(
-  notifications: PushNotificationRecord[],
-): Promise<void> {
-  requireUserId();
-  const unread = notifications.filter((n) => !n.isRead);
-  if (unread.length === 0) return;
-  try {
-    for (let i = 0; i < unread.length; i += CHUNK_SIZE) {
-      const chunk = unread.slice(i, i + CHUNK_SIZE);
-      const batch = writeBatch(db);
-      for (const n of chunk) {
-        batch.update(doc(db, 'notifications', n.id), {
-          isRead: true,
-          updatedAt: serverTimestamp(),
-        });
-      }
-      await batch.commit();
-    }
-  } catch (e) {
-    handleFirestoreError(e, OperationType.UPDATE, 'notifications');
+export async function commitFairnessPlanInRust(
+  shifts: Shift[],
+  staffDirectory: StaffDirectoryEntry[],
+  timeOffRequests: TimeOffRequest[],
+  actorUid: string,
+): Promise<number> {
+  const desktop = await requireDesktopToken();
+  if (desktop) {
+    return invokeRepoCommitFairnessPlan({
+      idToken: desktop.idToken,
+      actorUid: desktop.uid,
+      shifts,
+      staffDirectory,
+      timeOffRequests,
+    });
   }
+  const plan = buildFairnessArrangementPlan(shifts, staffDirectory, timeOffRequests);
+  return commitFairnessArrangementPlan(plan, actorUid);
 }
 
-export async function sendTestPushNotification(
-  uid: string,
-  displayName: string,
-): Promise<void> {
-  const actorUid = requireUserId();
-  const id = newId('ntf');
-  const batch = writeBatch(db);
-  batch.set(doc(db, 'notifications', id), {
-    id,
-    recipientUid: uid,
-    title: 'Cadence Alert Test',
-    message: `Real-time notification channel active for ${displayName}.`.slice(0, 400),
-    category: NotificationCategory.SHIFT_ASSIGNED,
-    relatedShiftId: '',
-    isRead: false,
+export async function commitOpenShiftPlanInRust(
+  shifts: Shift[],
+  staffDirectory: StaffDirectoryEntry[],
+  submissions: ShiftSubmission[],
+  timeOffRequests: TimeOffRequest[],
+  requireExplicitSubmission: boolean,
+  actorUid: string,
+): Promise<number> {
+  const desktop = await requireDesktopToken();
+  if (desktop) {
+    return invokeRepoCommitOpenShiftPlan({
+      idToken: desktop.idToken,
+      actorUid: desktop.uid,
+      shifts,
+      staffDirectory,
+      submissions,
+      timeOffRequests,
+      requireExplicitSubmission,
+    });
+  }
+  const plan = buildOpenShiftAssignmentPlan(
+    shifts,
+    staffDirectory,
+    submissions,
+    timeOffRequests,
+    requireExplicitSubmission,
+  );
+  return commitOpenShiftAssignmentPlan(plan, actorUid);
+}
+
+export async function generateWeeklyScheduleInRust(
+  mondayIso: string,
+  slots: WeekSlotConfig[],
+  staffDirectory: StaffDirectoryEntry[],
+  existingShifts: Shift[],
+  submissions: ShiftSubmission[],
+  timeOffRequests: TimeOffRequest[],
+  actorUid: string,
+): Promise<{ assigned: number; open: number }> {
+  const desktop = await requireDesktopToken();
+  if (desktop) {
+    return invokeRepoGenerateWeeklySchedule({
+      idToken: desktop.idToken,
+      actorUid: desktop.uid,
+      mondayIso,
+      slots,
+      staffDirectory,
+      existingShifts,
+      submissions,
+      timeOffRequests,
+    });
+  }
+  const planned = generateWeeklyFairnessSchedule(
+    mondayIso,
+    slots,
+    staffDirectory,
+    existingShifts,
+    submissions,
+    timeOffRequests,
+  );
+  return commitWeeklyScheduleBatch(planned, actorUid);
+}
+
+export const commitFairnessArrangementPlan = (plan: FairnessArrangementItem[], actorUid: string) =>
+  commitAssignmentPlanBatch(
+    plan,
     actorUid,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-  try {
-    await batch.commit();
-  } catch (e) {
-    handleFirestoreError(e, OperationType.CREATE, `notifications/${id}`);
-  }
-}
+    'Overlap Resolved by Fairness',
+    NotificationCategory.FAIRNESS_REBALANCED,
+    (i) => `${i.shift.title} (${i.shift.date} ${i.shift.startTime}-${i.shift.endTime}) assigned to you. ${i.reason}`,
+  );
 
-// --- Fairness Plans & Weekly Schedule ---
-
-export async function commitFairnessArrangementPlan(
-  plan: FairnessArrangementItem[],
-  actorUid: string,
-): Promise<number> {
-  requireUserId();
-  if (plan.length === 0) return 0;
-  const nowIso = new Date().toISOString();
-  let batch = writeBatch(db);
-  let ops = 0;
-
-  const flushIfNeeded = async (needed: number) => {
-    if (ops + needed > CHUNK_SIZE) {
-      await batch.commit();
-      batch = writeBatch(db);
-      ops = 0;
-    }
-  };
-
-  try {
-    for (const item of plan) {
-      await flushIfNeeded(3);
-      batch.update(doc(db, 'shifts', item.shift.id), {
-        assignedUid: item.chosenUid,
-        assignedName: item.chosenName,
-        status: ShiftStatus.SCHEDULED,
-        fairnessNote: item.reason.slice(0, 300),
-        updatedAt: serverTimestamp(),
-      });
-      ops++;
-
-      batch.update(doc(db, 'staffDirectory', item.chosenUid), {
-        lastAssignedAt: nowIso,
-        updatedAt: serverTimestamp(),
-      });
-      ops++;
-
-      const notifId = newId('ntf');
-      batch.set(doc(db, 'notifications', notifId), {
-        id: notifId,
-        recipientUid: item.chosenUid,
-        title: 'Overlap Resolved by Fairness',
-        message: `${item.shift.title} (${item.shift.date} ${item.shift.startTime}-${item.shift.endTime}) assigned to you. ${item.reason}`.slice(
-          0,
-          400,
-        ),
-        category: NotificationCategory.FAIRNESS_REBALANCED,
-        relatedShiftId: item.shift.id,
-        isRead: false,
-        actorUid,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-      ops++;
-    }
-    if (ops > 0) await batch.commit();
-  } catch (e) {
-    handleFirestoreError(e, OperationType.WRITE, 'shifts');
-  }
-  return plan.length;
-}
-
-export async function commitOpenShiftAssignmentPlan(
-  plan: OpenShiftAssignmentItem[],
-  actorUid: string,
-): Promise<number> {
-  requireUserId();
-  if (plan.length === 0) return 0;
-  const nowIso = new Date().toISOString();
-  let batch = writeBatch(db);
-  let ops = 0;
-
-  const flushIfNeeded = async (needed: number) => {
-    if (ops + needed > CHUNK_SIZE) {
-      await batch.commit();
-      batch = writeBatch(db);
-      ops = 0;
-    }
-  };
-
-  try {
-    for (const item of plan) {
-      await flushIfNeeded(3);
-      batch.update(doc(db, 'shifts', item.shift.id), {
-        assignedUid: item.chosenUid,
-        assignedName: item.chosenName,
-        status: ShiftStatus.SCHEDULED,
-        fairnessNote: item.reason.slice(0, 300),
-        updatedAt: serverTimestamp(),
-      });
-      ops++;
-
-      batch.update(doc(db, 'staffDirectory', item.chosenUid), {
-        lastAssignedAt: nowIso,
-        updatedAt: serverTimestamp(),
-      });
-      ops++;
-
-      const notifId = newId('ntf');
-      batch.set(doc(db, 'notifications', notifId), {
-        id: notifId,
-        recipientUid: item.chosenUid,
-        title: 'Open Shift Assigned',
-        message: `${item.shift.title} on ${item.shift.date} (${item.shift.startTime}-${item.shift.endTime}) assigned to you.`.slice(
-          0,
-          400,
-        ),
-        category: NotificationCategory.SHIFT_ASSIGNED,
-        relatedShiftId: item.shift.id,
-        isRead: false,
-        actorUid,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-      ops++;
-    }
-    if (ops > 0) await batch.commit();
-  } catch (e) {
-    handleFirestoreError(e, OperationType.WRITE, 'shifts');
-  }
-  return plan.length;
-}
+export const commitOpenShiftAssignmentPlan = (plan: OpenShiftAssignmentItem[], actorUid: string) =>
+  commitAssignmentPlanBatch(
+    plan,
+    actorUid,
+    'Open Shift Assigned',
+    NotificationCategory.SHIFT_ASSIGNED,
+    (i) => `${i.shift.title} on ${i.shift.date} (${i.shift.startTime}-${i.shift.endTime}) assigned to you.`,
+  );
 
 export async function commitWeeklyScheduleBatch(
   planned: GeneratedShiftSpec[],
@@ -1502,30 +1554,20 @@ export async function commitWeeklyScheduleBatch(
   requireUserId();
   if (planned.length === 0) return { assigned: 0, open: 0 };
   const nowIso = new Date().toISOString();
-  let batch = writeBatch(db);
-  let ops = 0;
+  const ops: BatchOp[] = [];
   let assigned = 0;
   let open = 0;
-  const touchedStaff = new Set<string>();
+  const touched = new Set<string>();
 
-  const flushIfNeeded = async (needed: number) => {
-    if (ops + needed > CHUNK_SIZE) {
-      await batch.commit();
-      batch = writeBatch(db);
-      ops = 0;
-    }
-  };
-
-  try {
-    for (const spec of planned) {
-      const shiftId = newId('shift');
-      const hasAssignee =
-        spec.status !== ShiftStatus.OPEN && spec.assignedUid.trim().length > 0;
-      if (hasAssignee) assigned++;
-      else open++;
-
-      await flushIfNeeded(hasAssignee ? 2 : 1);
-      batch.set(doc(db, 'shifts', shiftId), {
+  for (const spec of planned) {
+    const shiftId = newId('shift');
+    const hasAssignee = spec.status !== ShiftStatus.OPEN && spec.assignedUid.trim().length > 0;
+    if (hasAssignee) assigned++;
+    else open++;
+    ops.push({
+      kind: 'set',
+      ref: doc(db, 'shifts', shiftId),
+      data: makeShiftData({
         id: shiftId,
         title: spec.title,
         department: spec.department,
@@ -1533,57 +1575,41 @@ export async function commitWeeklyScheduleBatch(
         startTime: spec.startTime,
         endTime: spec.endTime,
         durationHours: spec.durationHours,
-        assignedUid: hasAssignee ? spec.assignedUid : '',
-        assignedName: hasAssignee ? spec.assignedName : '',
-        candidateUids: spec.candidateUids.slice(0, 20),
+        assignedUid: spec.assignedUid,
+        assignedName: spec.assignedName,
+        candidateUids: spec.candidateUids,
         status: spec.status,
-        visibility: 'team',
-        fairnessNote: spec.fairnessNote.slice(0, 300),
+        fairnessNote: spec.fairnessNote,
         createdBy: actorUid,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-      ops++;
-
-      if (hasAssignee) {
-        touchedStaff.add(spec.assignedUid);
-        const notifId = newId('ntf');
-        batch.set(doc(db, 'notifications', notifId), {
-          id: notifId,
-          recipientUid: spec.assignedUid,
-          title: 'Weekly Schedule Published',
-          message: `You were scheduled for ${spec.title} on ${spec.date} (${spec.startTime}-${spec.endTime}).`.slice(
-            0,
-            400,
-          ),
-          category: NotificationCategory.SHIFT_ASSIGNED,
-          relatedShiftId: shiftId,
-          isRead: false,
+        includeCreatedAt: true,
+      }),
+    });
+    if (hasAssignee) {
+      touched.add(spec.assignedUid);
+      ops.push(
+        makeNotificationOp(
+          spec.assignedUid,
+          'Weekly Schedule Published',
+          `You were scheduled for ${spec.title} on ${spec.date} (${spec.startTime}-${spec.endTime}).`,
+          NotificationCategory.SHIFT_ASSIGNED,
+          shiftId,
           actorUid,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
-        ops++;
-      }
+        ),
+      );
     }
-
-    for (const uid of touchedStaff) {
-      await flushIfNeeded(1);
-      batch.update(doc(db, 'staffDirectory', uid), {
-        lastAssignedAt: nowIso,
-        updatedAt: serverTimestamp(),
-      });
-      ops++;
-    }
-
-    if (ops > 0) await batch.commit();
-  } catch (e) {
-    handleFirestoreError(e, OperationType.WRITE, 'shifts');
   }
+  for (const uid of touched) {
+    ops.push({
+      kind: 'update',
+      ref: doc(db, 'staffDirectory', uid),
+      data: { lastAssignedAt: nowIso, updatedAt: serverTimestamp() },
+    });
+  }
+  await commitOpsInChunks(ops, OperationType.WRITE, 'shifts');
   return { assigned, open };
 }
 
-// --- Shift Submissions ---
+// --- Shift Submissions & Time Off ---
 
 export async function submitShiftAvailabilityBatch(
   staffUid: string,
@@ -1595,58 +1621,60 @@ export async function submitShiftAvailabilityBatch(
   shiftTitle: string,
   notes: string,
 ): Promise<number> {
+  const desktop = await requireDesktopToken();
+  if (desktop) {
+    return invokeRepoSubmitAvailabilityBatch({
+      idToken: desktop.idToken,
+      staffUid,
+      staffName,
+      department,
+      dates,
+      startTime,
+      endTime,
+      shiftTitle,
+      notes,
+    });
+  }
   requireUserId();
   const uniqueDates = Array.from(new Set(dates));
-  if (uniqueDates.length === 0) return 0;
-
-  try {
-    for (let i = 0; i < uniqueDates.length; i += CHUNK_SIZE) {
-      const chunk = uniqueDates.slice(i, i + CHUNK_SIZE);
-      const batch = writeBatch(db);
-      for (const d of chunk) {
-        const id = newId('sub');
-        batch.set(doc(db, 'shiftSubmissions', id), {
-          id,
-          staffUid,
-          staffName,
-          department: department.trim().slice(0, 60),
-          date: d,
-          startTime,
-          endTime,
-          shiftTitle: shiftTitle.trim().slice(0, 120),
-          notes: notes.trim().slice(0, 300),
-          status: SubmissionStatus.SUBMITTED,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
-      }
-      await batch.commit();
-    }
-  } catch (e) {
-    handleFirestoreError(e, OperationType.CREATE, 'shiftSubmissions');
-  }
+  const ops: BatchOp[] = uniqueDates.map((d) => {
+    const id = newId('sub');
+    return {
+      kind: 'set',
+      ref: doc(db, 'shiftSubmissions', id),
+      data: {
+        id,
+        staffUid,
+        staffName,
+        department: department.trim().slice(0, 60),
+        date: d,
+        startTime,
+        endTime,
+        shiftTitle: shiftTitle.trim().slice(0, 120),
+        notes: notes.trim().slice(0, 300),
+        status: SubmissionStatus.SUBMITTED,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      },
+    };
+  });
+  await commitOpsInChunks(ops, OperationType.CREATE, 'shiftSubmissions');
   return uniqueDates.length;
 }
 
 export async function withdrawShiftSubmission(submissionId: string): Promise<void> {
-  requireUserId();
-  const batch = writeBatch(db);
-  batch.update(doc(db, 'shiftSubmissions', submissionId), {
-    status: SubmissionStatus.WITHDRAWN,
-    updatedAt: serverTimestamp(),
-  });
-  try {
-    await batch.commit();
-  } catch (e) {
-    handleFirestoreError(
-      e,
-      OperationType.UPDATE,
-      `shiftSubmissions/${submissionId}`,
-    );
+  const desktop = await requireDesktopToken();
+  if (desktop) {
+    await invokeRepoWithdrawSubmission({ idToken: desktop.idToken, submissionId });
+    return;
   }
+  requireUserId();
+  await commitOpsInChunks(
+    [{ kind: 'update', ref: doc(db, 'shiftSubmissions', submissionId), data: { status: SubmissionStatus.WITHDRAWN, updatedAt: serverTimestamp() } }],
+    OperationType.UPDATE,
+    `shiftSubmissions/${submissionId}`,
+  );
 }
-
-// --- Time Off Requests ---
 
 export async function createTimeOffRequest(
   staffUid: string,
@@ -1656,41 +1684,60 @@ export async function createTimeOffRequest(
   endDate: string,
   reason: string,
 ): Promise<string> {
+  const desktop = await requireDesktopToken();
+  if (desktop) {
+    return invokeRepoCreateTimeOff({
+      idToken: desktop.idToken,
+      staffUid,
+      staffName,
+      department,
+      startDate,
+      endDate,
+      reason,
+    });
+  }
   requireUserId();
   const id = newId('to');
-  const batch = writeBatch(db);
-  batch.set(doc(db, 'timeOffRequests', id), {
-    id,
-    staffUid,
-    staffName,
-    department: department.trim().slice(0, 60),
-    startDate,
-    endDate,
-    reason: reason.trim().slice(0, 400),
-    status: ApprovalStatus.PENDING,
-    reviewedByUid: '',
-    reviewedByName: '',
-    reviewNote: '',
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-  try {
-    await batch.commit();
-  } catch (e) {
-    handleFirestoreError(e, OperationType.CREATE, `timeOffRequests/${id}`);
-  }
+  await commitOpsInChunks(
+    [
+      {
+        kind: 'set',
+        ref: doc(db, 'timeOffRequests', id),
+        data: {
+          id,
+          staffUid,
+          staffName,
+          department: department.trim().slice(0, 60),
+          startDate,
+          endDate,
+          reason: reason.trim().slice(0, 400),
+          status: ApprovalStatus.PENDING,
+          reviewedByUid: '',
+          reviewedByName: '',
+          reviewNote: '',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        },
+      },
+    ],
+    OperationType.CREATE,
+    `timeOffRequests/${id}`,
+  );
   return id;
 }
 
 export async function withdrawTimeOffRequest(requestId: string): Promise<void> {
-  requireUserId();
-  const batch = writeBatch(db);
-  batch.delete(doc(db, 'timeOffRequests', requestId));
-  try {
-    await batch.commit();
-  } catch (e) {
-    handleFirestoreError(e, OperationType.DELETE, `timeOffRequests/${requestId}`);
+  const desktop = await requireDesktopToken();
+  if (desktop) {
+    await invokeRepoWithdrawTimeOff({ idToken: desktop.idToken, requestId });
+    return;
   }
+  requireUserId();
+  await commitOpsInChunks(
+    [{ kind: 'delete', ref: doc(db, 'timeOffRequests', requestId) }],
+    OperationType.DELETE,
+    `timeOffRequests/${requestId}`,
+  );
 }
 
 export async function decideTimeOffRequest(
@@ -1700,44 +1747,50 @@ export async function decideTimeOffRequest(
   reviewerName: string,
   reviewNote: string,
 ): Promise<void> {
-  requireUserId();
-  const batch = writeBatch(db);
-  batch.update(doc(db, 'timeOffRequests', req.id), {
-    status: decision,
-    reviewedByUid: reviewerUid,
-    reviewedByName: reviewerName,
-    reviewNote: reviewNote.trim().slice(0, 300),
-    updatedAt: serverTimestamp(),
-  });
-
-  const isApproved = decision === ApprovalStatus.APPROVED;
-  const notifId = newId('ntf');
-  batch.set(doc(db, 'notifications', notifId), {
-    id: notifId,
-    recipientUid: req.staffUid,
-    title: isApproved ? 'Time Off Approved' : 'Time Off Denied',
-    message: (isApproved
-      ? `Your time off request (${req.startDate} to ${req.endDate}) was approved by ${reviewerName}.`
-      : `Your time off request (${req.startDate} to ${req.endDate}) was denied by ${reviewerName}.${reviewNote.trim() ? ` Note: ${reviewNote.trim()}` : ''}`
-    ).slice(0, 400),
-    category: isApproved
-      ? NotificationCategory.TIME_OFF_APPROVED
-      : NotificationCategory.TIME_OFF_DENIED,
-    relatedShiftId: '',
-    isRead: false,
-    actorUid: reviewerUid,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-
-  try {
-    await batch.commit();
-  } catch (e) {
-    handleFirestoreError(e, OperationType.UPDATE, `timeOffRequests/${req.id}`);
+  const desktop = await requireDesktopToken();
+  if (desktop) {
+    await invokeRepoDecideTimeOff({
+      idToken: desktop.idToken,
+      req,
+      decision,
+      reviewerUid,
+      reviewerName,
+      reviewNote,
+    });
+    return;
   }
+  requireUserId();
+  const isApproved = decision === ApprovalStatus.APPROVED;
+  await commitOpsInChunks(
+    [
+      {
+        kind: 'update',
+        ref: doc(db, 'timeOffRequests', req.id),
+        data: {
+          status: decision,
+          reviewedByUid: reviewerUid,
+          reviewedByName: reviewerName,
+          reviewNote: reviewNote.trim().slice(0, 300),
+          updatedAt: serverTimestamp(),
+        },
+      },
+      makeNotificationOp(
+        req.staffUid,
+        isApproved ? 'Time Off Approved' : 'Time Off Denied',
+        isApproved
+          ? `Your time off request (${req.startDate} to ${req.endDate}) was approved by ${reviewerName}.`
+          : `Your time off request (${req.startDate} to ${req.endDate}) was denied by ${reviewerName}.${reviewNote.trim() ? ` Note: ${reviewNote.trim()}` : ''}`,
+        isApproved ? NotificationCategory.TIME_OFF_APPROVED : NotificationCategory.TIME_OFF_DENIED,
+        '',
+        reviewerUid,
+      ),
+    ],
+    OperationType.UPDATE,
+    `timeOffRequests/${req.id}`,
+  );
 }
 
-// --- Team Roster & Roles ---
+// --- Team Roster, Roles & Sample Seeding ---
 
 export async function addRosterStaffMember(
   displayName: string,
@@ -1745,26 +1798,40 @@ export async function addRosterStaffMember(
   weeklyHoursTarget: number,
   role: UserRole,
 ): Promise<string> {
+  const desktop = await requireDesktopToken();
+  if (desktop) {
+    return invokeRepoAddRosterStaff({
+      idToken: desktop.idToken,
+      displayName,
+      department,
+      weeklyHoursTarget,
+      role,
+    });
+  }
   requireUserId();
   const uid = newId('roster');
-  const batch = writeBatch(db);
-  batch.set(doc(db, 'staffDirectory', uid), {
-    uid,
-    displayName: displayName.trim().slice(0, 80),
-    role,
-    department: department.trim().slice(0, 60),
-    totalHoursWorked: 0,
-    scheduledHoursThisWeek: 0,
-    weeklyHoursTarget: Math.min(80, Math.max(1, weeklyHoursTarget)),
-    lastAssignedAt: '',
-    isSampleRoster: false,
-    updatedAt: serverTimestamp(),
-  });
-  try {
-    await batch.commit();
-  } catch (e) {
-    handleFirestoreError(e, OperationType.CREATE, `staffDirectory/${uid}`);
-  }
+  await commitOpsInChunks(
+    [
+      {
+        kind: 'set',
+        ref: doc(db, 'staffDirectory', uid),
+        data: {
+          uid,
+          displayName: displayName.trim().slice(0, 80),
+          role,
+          department: department.trim().slice(0, 60),
+          totalHoursWorked: 0,
+          scheduledHoursThisWeek: 0,
+          weeklyHoursTarget: Math.min(80, Math.max(1, weeklyHoursTarget)),
+          lastAssignedAt: '',
+          isSampleRoster: false,
+          updatedAt: serverTimestamp(),
+        },
+      },
+    ],
+    OperationType.CREATE,
+    `staffDirectory/${uid}`,
+  );
   return uid;
 }
 
@@ -1773,326 +1840,177 @@ export async function toggleManagerRole(
   grantManager: boolean,
   actorUid: string,
 ): Promise<void> {
+  const desktop = await requireDesktopToken();
+  if (desktop) {
+    await invokeRepoToggleManagerRole({
+      idToken: desktop.idToken,
+      targetEntry,
+      grantManager,
+      actorUid,
+    });
+    return;
+  }
   requireUserId();
   const newRole = grantManager ? UserRole.MANAGER : UserRole.STAFF;
-  const batch = writeBatch(db);
-  const managerRef = doc(db, 'managers', targetEntry.uid);
-  const staffRef = doc(db, 'staffDirectory', targetEntry.uid);
-
-  if (grantManager) {
-    batch.set(managerRef, {
-      uid: targetEntry.uid,
-      grantedBy: actorUid,
-      createdAt: serverTimestamp(),
-    });
-  } else {
-    batch.delete(managerRef);
-  }
-
-  batch.update(staffRef, {
-    role: newRole,
-    updatedAt: serverTimestamp(),
-  });
-
-  const userRef = doc(db, 'users', targetEntry.uid);
+  const ops: BatchOp[] = [
+    grantManager
+      ? {
+          kind: 'set',
+          ref: doc(db, 'managers', targetEntry.uid),
+          data: { uid: targetEntry.uid, grantedBy: actorUid, createdAt: serverTimestamp() },
+        }
+      : { kind: 'delete', ref: doc(db, 'managers', targetEntry.uid) },
+    {
+      kind: 'update',
+      ref: doc(db, 'staffDirectory', targetEntry.uid),
+      data: { role: newRole, updatedAt: serverTimestamp() },
+    },
+  ];
   try {
-    const userSnap = await getDoc(userRef);
+    const userSnap = await getDoc(doc(db, 'users', targetEntry.uid));
     if (userSnap.exists()) {
-      batch.update(userRef, {
-        role: newRole,
-        updatedAt: serverTimestamp(),
+      ops.push({
+        kind: 'update',
+        ref: doc(db, 'users', targetEntry.uid),
+        data: { role: newRole, updatedAt: serverTimestamp() },
       });
     }
   } catch {
     // Non-fatal if user profile isn't readable
   }
-
-  try {
-    await batch.commit();
-  } catch (e) {
-    handleFirestoreError(
-      e,
-      OperationType.WRITE,
-      `staffDirectory/${targetEntry.uid}`,
-    );
-  }
+  await commitOpsInChunks(ops, OperationType.WRITE, `staffDirectory/${targetEntry.uid}`);
 }
 
 export async function seedSampleWorkspaceData(
   actorUid: string,
   actorName: string,
 ): Promise<void> {
-  requireUserId();
-  const rustBundle = await invokeBuildSampleWorkspace(actorUid, actorName);
-  if (rustBundle) {
-    const batch = writeBatch(db);
-    for (const member of rustBundle.roster) {
-      batch.set(doc(db, 'staffDirectory', member.uid), {
-        ...member,
-        updatedAt: serverTimestamp(),
-      });
-    }
-    for (const shift of rustBundle.shifts) {
-      batch.set(doc(db, 'shifts', shift.id), {
-        ...shift,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-    }
-    for (const req of rustBundle.scheduleChanges) {
-      batch.set(doc(db, 'scheduleChanges', req.id), {
-        ...req,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-    }
-    for (const rep of rustBundle.shiftReports) {
-      batch.set(doc(db, 'shiftReports', rep.id), {
-        ...rep,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-    }
-    for (const sub of rustBundle.shiftSubmissions) {
-      batch.set(doc(db, 'shiftSubmissions', sub.id), {
-        ...sub,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-    }
-    for (const to of rustBundle.timeOffRequests) {
-      batch.set(doc(db, 'timeOffRequests', to.id), {
-        ...to,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-    }
-    try {
-      await batch.commit();
-      return;
-    } catch (e) {
-      handleFirestoreError(e, OperationType.WRITE, 'staffDirectory');
-    }
+  const desktop = await requireDesktopToken();
+  if (desktop) {
+    await invokeRepoSeedSampleWorkspace({
+      idToken: desktop.idToken,
+      actorUid: desktop.uid,
+      actorName,
+    });
+    return;
   }
-
+  requireUserId();
   const day0 = getMondayIso();
   const day1 = addDaysIso(day0, 1);
   const day2 = addDaysIso(day0, 2);
   const day3 = addDaysIso(day0, 3);
-  const day4 = addDaysIso(day0, 4);
-  const day5 = addDaysIso(day0, 5);
-
-  const batch = writeBatch(db);
-
-  const sampleStaff = [
+  const ops: BatchOp[] = [
+    ...([
+      ['sample_maya_patel', 'Maya Patel', 'Operations', 18, 8, 40, '2026-10-01T08:00:00Z'],
+      ['sample_liam_brooks', 'Liam Brooks', 'Support', 36, 16, 40, '2026-11-10T08:00:00Z'],
+      ['sample_noah_kim', 'Noah Kim', 'Operations', 24.5, 8, 32, '2026-11-05T08:00:00Z'],
+    ] as const).map(
+      ([uid, displayName, department, totalHoursWorked, scheduledHoursThisWeek, weeklyHoursTarget, lastAssignedAt]): BatchOp => ({
+        kind: 'set',
+        ref: doc(db, 'staffDirectory', uid),
+        data: {
+          uid,
+          displayName,
+          role: 'staff',
+          department,
+          totalHoursWorked,
+          scheduledHoursThisWeek,
+          weeklyHoursTarget,
+          lastAssignedAt,
+          isSampleRoster: true,
+          updatedAt: serverTimestamp(),
+        },
+      }),
+    ),
     {
-      uid: 'sample_maya_patel',
-      displayName: 'Maya Patel',
-      role: 'staff',
-      department: 'Operations',
-      totalHoursWorked: 18,
-      scheduledHoursThisWeek: 8,
-      weeklyHoursTarget: 40,
-      lastAssignedAt: '2026-10-01T08:00:00Z',
-      isSampleRoster: true,
-      updatedAt: serverTimestamp(),
+      kind: 'set',
+      ref: doc(db, 'shifts', 'sample_shift_overlap_1'),
+      data: makeShiftData({
+        id: 'sample_shift_overlap_1',
+        title: 'Morning Operations Lead',
+        department: 'Operations',
+        date: day1,
+        startTime: '07:00',
+        endTime: '15:00',
+        durationHours: 8,
+        assignedUid: 'sample_liam_brooks',
+        assignedName: 'Liam Brooks',
+        candidateUids: ['sample_liam_brooks', 'sample_maya_patel'],
+        status: ShiftStatus.CONFLICT,
+        fairnessNote: '2 overlapping candidates — ready for fairness arrange',
+        createdBy: actorUid,
+        includeCreatedAt: true,
+      }),
     },
     {
-      uid: 'sample_liam_brooks',
-      displayName: 'Liam Brooks',
-      role: 'staff',
-      department: 'Support',
-      totalHoursWorked: 36,
-      scheduledHoursThisWeek: 16,
-      weeklyHoursTarget: 40,
-      lastAssignedAt: '2026-11-10T08:00:00Z',
-      isSampleRoster: true,
-      updatedAt: serverTimestamp(),
+      kind: 'set',
+      ref: doc(db, 'shifts', 'sample_shift_open_slot'),
+      data: makeShiftData({
+        id: 'sample_shift_open_slot',
+        title: 'Evening Dispatch',
+        department: 'Operations',
+        date: day3,
+        startTime: '15:00',
+        endTime: '23:00',
+        durationHours: 8,
+        assignedUid: '',
+        assignedName: '',
+        candidateUids: ['sample_maya_patel', 'sample_noah_kim'],
+        status: ShiftStatus.OPEN,
+        fairnessNote: 'Open shift awaiting fairness assignment',
+        createdBy: actorUid,
+        includeCreatedAt: true,
+      }),
     },
     {
-      uid: 'sample_noah_kim',
-      displayName: 'Noah Kim',
-      role: 'staff',
-      department: 'Operations',
-      totalHoursWorked: 24.5,
-      scheduledHoursThisWeek: 8,
-      weeklyHoursTarget: 32,
-      lastAssignedAt: '2026-11-05T08:00:00Z',
-      isSampleRoster: true,
-      updatedAt: serverTimestamp(),
+      kind: 'set',
+      ref: doc(db, 'scheduleChanges', 'sample_change_req_2'),
+      data: {
+        id: 'sample_change_req_2',
+        shiftId: 'sample_shift_overlap_1',
+        shiftTitle: 'Morning Operations Lead',
+        requesterUid: 'sample_liam_brooks',
+        requesterName: 'Liam Brooks',
+        type: ScheduleChangeType.TIME_CHANGE,
+        currentDate: day1,
+        currentStartTime: '07:00',
+        currentEndTime: '15:00',
+        proposedDate: day2,
+        proposedStartTime: '08:00',
+        proposedEndTime: '16:00',
+        proposedAssigneeUid: '',
+        proposedAssigneeName: '',
+        reason: 'Transit schedule starts 1 hour later.',
+        status: ApprovalStatus.PENDING,
+        reviewedByUid: '',
+        reviewedByName: '',
+        reviewNote: '',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      },
+    },
+    {
+      kind: 'set',
+      ref: doc(db, 'shiftReports', 'sample_report_1'),
+      data: {
+        id: 'sample_report_1',
+        shiftId: '',
+        shiftTitle: 'Morning Operations Lead',
+        staffUid: actorUid,
+        staffName: actorName,
+        department: 'Operations',
+        date: day0,
+        actualStartTime: '07:00',
+        actualEndTime: '15:30',
+        breakMinutes: 30,
+        workedHours: 8,
+        handoffNotes: 'Checklist complete; inventory restocked for midday team.',
+        status: ShiftReportStatus.SUBMITTED,
+        verifiedByUid: '',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      },
     },
   ];
-
-  for (const member of sampleStaff) {
-    batch.set(doc(db, 'staffDirectory', member.uid), member);
-  }
-
-  const shift1Id = 'sample_shift_overlap_1';
-  batch.set(doc(db, 'shifts', shift1Id), {
-    id: shift1Id,
-    title: 'Morning Operations Lead',
-    department: 'Operations',
-    date: day1,
-    startTime: '07:00',
-    endTime: '15:00',
-    durationHours: 8,
-    assignedUid: 'sample_liam_brooks',
-    assignedName: 'Liam Brooks',
-    candidateUids: ['sample_liam_brooks', 'sample_maya_patel'],
-    status: ShiftStatus.CONFLICT,
-    visibility: 'team',
-    fairnessNote: '2 overlapping candidates — ready for fairness arrange',
-    createdBy: actorUid,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-
-  const shift2Id = 'sample_shift_overlap_2';
-  batch.set(doc(db, 'shifts', shift2Id), {
-    id: shift2Id,
-    title: 'Midday Floor Support',
-    department: 'Support',
-    date: day2,
-    startTime: '11:00',
-    endTime: '19:00',
-    durationHours: 8,
-    assignedUid: 'sample_liam_brooks',
-    assignedName: 'Liam Brooks',
-    candidateUids: ['sample_liam_brooks', 'sample_noah_kim', 'sample_maya_patel'],
-    status: ShiftStatus.CONFLICT,
-    visibility: 'team',
-    fairnessNote: '3 overlapping candidates — ready for fairness arrange',
-    createdBy: actorUid,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-
-  const shift3Id = 'sample_shift_pending_change';
-  batch.set(doc(db, 'shifts', shift3Id), {
-    id: shift3Id,
-    title: 'Closing Desk Coverage',
-    department: 'Operations',
-    date: day0,
-    startTime: '15:00',
-    endTime: '23:00',
-    durationHours: 8,
-    assignedUid: 'sample_noah_kim',
-    assignedName: 'Noah Kim',
-    candidateUids: ['sample_noah_kim'],
-    status: ShiftStatus.PENDING_CHANGE,
-    visibility: 'team',
-    fairnessNote: 'Change request pending manager decision',
-    createdBy: actorUid,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-
-  const shift4Id = 'sample_shift_open_slot';
-  batch.set(doc(db, 'shifts', shift4Id), {
-    id: shift4Id,
-    title: 'Evening Dispatch',
-    department: 'Operations',
-    date: day3,
-    startTime: '15:00',
-    endTime: '23:00',
-    durationHours: 8,
-    assignedUid: '',
-    assignedName: '',
-    candidateUids: ['sample_maya_patel', 'sample_noah_kim'],
-    status: ShiftStatus.OPEN,
-    visibility: 'team',
-    fairnessNote: 'Open shift awaiting fairness assignment',
-    createdBy: actorUid,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-
-  batch.set(doc(db, 'scheduleChanges', 'sample_change_req_1'), {
-    id: 'sample_change_req_1',
-    shiftId: shift3Id,
-    shiftTitle: 'Closing Desk Coverage',
-    requesterUid: 'sample_noah_kim',
-    requesterName: 'Noah Kim',
-    type: ScheduleChangeType.SWAP,
-    currentDate: day0,
-    currentStartTime: '15:00',
-    currentEndTime: '23:00',
-    proposedDate: day0,
-    proposedStartTime: '15:00',
-    proposedEndTime: '23:00',
-    proposedAssigneeUid: 'sample_maya_patel',
-    proposedAssigneeName: 'Maya Patel',
-    reason: 'Swapping with Maya to balance weekly hours.',
-    status: ApprovalStatus.PENDING,
-    reviewedByUid: '',
-    reviewedByName: '',
-    reviewNote: '',
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-
-  batch.set(doc(db, 'scheduleChanges', 'sample_change_req_2'), {
-    id: 'sample_change_req_2',
-    shiftId: shift1Id,
-    shiftTitle: 'Morning Operations Lead',
-    requesterUid: 'sample_liam_brooks',
-    requesterName: 'Liam Brooks',
-    type: ScheduleChangeType.TIME_CHANGE,
-    currentDate: day1,
-    currentStartTime: '07:00',
-    currentEndTime: '15:00',
-    proposedDate: day1,
-    proposedStartTime: '08:00',
-    proposedEndTime: '16:00',
-    proposedAssigneeUid: '',
-    proposedAssigneeName: '',
-    reason: 'Transit schedule starts 1 hour later.',
-    status: ApprovalStatus.PENDING,
-    reviewedByUid: '',
-    reviewedByName: '',
-    reviewNote: '',
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-
-  batch.set(doc(db, 'shiftReports', 'sample_report_1'), {
-    id: 'sample_report_1',
-    shiftId: '',
-    shiftTitle: 'Morning Operations Lead',
-    staffUid: actorUid,
-    staffName: actorName,
-    department: 'Operations',
-    date: day0,
-    actualStartTime: '07:00',
-    actualEndTime: '15:30',
-    breakMinutes: 30,
-    workedHours: 8,
-    handoffNotes: 'Checklist complete; inventory restocked for midday team.',
-    status: ShiftReportStatus.SUBMITTED,
-    verifiedByUid: '',
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-
-  batch.set(doc(db, 'timeOffRequests', 'sample_timeoff_1'), {
-    id: 'sample_timeoff_1',
-    staffUid: 'sample_maya_patel',
-    staffName: 'Maya Patel',
-    department: 'Operations',
-    startDate: day4,
-    endDate: day5,
-    reason: 'Family weekend out of town.',
-    status: ApprovalStatus.PENDING,
-    reviewedByUid: '',
-    reviewedByName: '',
-    reviewNote: '',
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-
-  try {
-    await batch.commit();
-  } catch (e) {
-    handleFirestoreError(e, OperationType.WRITE, 'staffDirectory');
-  }
+  await commitOpsInChunks(ops, OperationType.WRITE, 'staffDirectory');
 }

@@ -181,5 +181,47 @@ mod tests {
         seen.insert("n1".to_string());
         let after = filter_unnotified_alerts(&records, &seen, true);
         assert!(after.is_empty());
+
+        let suppressed = filter_unnotified_alerts(&records, &HashSet::new(), false);
+        assert!(suppressed.is_empty());
+        assert_eq!(unread_notification_ids(&records), vec!["n1".to_string()]);
+    }
+
+    #[test]
+    fn builds_time_off_and_submitted_report_work_alerts_for_managers() {
+        let to = vec![TimeOffRequest {
+            id: "to_9".to_string(),
+            staff_uid: "u_staff".to_string(),
+            staff_name: "Maya".to_string(),
+            department: "Operations".to_string(),
+            start_date: "2026-12-10".to_string(),
+            end_date: "2026-12-12".to_string(),
+            reason: "Travel".to_string(),
+            status: ApprovalStatus::Pending,
+            reviewed_by_uid: String::new(),
+            reviewed_by_name: String::new(),
+            review_note: String::new(),
+        }];
+        let reps = vec![ShiftReport {
+            id: "rep_9".to_string(),
+            shift_id: "s1".to_string(),
+            shift_title: "Evening Dispatch".to_string(),
+            staff_uid: "u_staff".to_string(),
+            staff_name: "Maya".to_string(),
+            department: "Operations".to_string(),
+            date: "2026-11-23".to_string(),
+            actual_start_time: "15:00".to_string(),
+            actual_end_time: "23:00".to_string(),
+            break_minutes: 0,
+            worked_hours: 8.0,
+            handoff_notes: "Done".to_string(),
+            status: ShiftReportStatus::Submitted,
+            verified_by_uid: String::new(),
+        }];
+        let items = build_manager_work_payloads("mgr_1", &[], &to, &reps);
+        assert_eq!(items.len(), 2);
+        let dedup = filter_new_manager_work_alerts(items, &HashSet::from(["to_to_9".to_string()]), true);
+        assert_eq!(dedup.len(), 1);
+        assert_eq!(dedup[0].key, "rep_rep_9");
     }
 }

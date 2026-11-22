@@ -63,7 +63,10 @@ export function OverviewScreen({
     (s) => s.status === ShiftStatus.CONFLICT || s.candidateUids.length > 1,
   ).length;
 
+  const precomputedKpis = data.rustInsights?.kpis ?? null;
+
   useEffect(() => {
+    if (precomputedKpis) return;
     let cancelled = false;
     void invokeComputeDashboardKpis(
       profile.uid,
@@ -79,6 +82,7 @@ export function OverviewScreen({
       cancelled = true;
     };
   }, [
+    precomputedKpis,
     profile.uid,
     profile.weeklyHoursTarget,
     shifts,
@@ -87,18 +91,19 @@ export function OverviewScreen({
     data.staffDirectory,
   ]);
 
+  const activeKpis = precomputedKpis ?? rustKpis;
   const currentStaffEntry = data.staffDirectory.find(
     (s) => s.uid === profile.uid,
   );
-  const myShiftsCount = rustKpis?.myShiftsCount ?? myShifts.length;
+  const myShiftsCount = activeKpis?.myShiftsCount ?? myShifts.length;
   const pendingApprovalsCount =
-    rustKpis?.pendingApprovalsCount ?? fallbackPendingApprovals;
+    activeKpis?.pendingApprovalsCount ?? fallbackPendingApprovals;
   const pendingTimeOffCount =
-    rustKpis?.pendingTimeOffCount ?? fallbackPendingTimeOff;
+    activeKpis?.pendingTimeOffCount ?? fallbackPendingTimeOff;
   const conflictShiftsCount =
-    rustKpis?.conflictShiftsCount ?? fallbackConflictShifts;
+    activeKpis?.conflictShiftsCount ?? fallbackConflictShifts;
   const totalLoggedHours =
-    rustKpis?.myVerifiedHours ?? currentStaffEntry?.totalHoursWorked ?? 0;
+    activeKpis?.myVerifiedHours ?? currentStaffEntry?.totalHoursWorked ?? 0;
 
   return (
     <div className="space-y-6">

@@ -250,4 +250,68 @@ mod tests {
         assert!(csv.contains("\"All systems checked, restocked.\""));
         assert!(csv.contains("8.00,verified"));
     }
+
+    #[test]
+    fn reverses_verified_hours_safely_and_flags_with_notification() {
+        let verified_rep = sample_report(ShiftReportStatus::Verified);
+        let staff = StaffDirectoryEntry {
+            uid: "u1".to_string(),
+            display_name: "Maya Patel".to_string(),
+            role: UserRole::Staff,
+            department: "Operations".to_string(),
+            total_hours_worked: 4.0,
+            scheduled_hours_this_week: 0.0,
+            weekly_hours_target: 40.0,
+            last_assigned_at: String::new(),
+            is_sample_roster: false,
+        };
+        let review = plan_report_review(
+            &verified_rep,
+            ShiftReportStatus::Flagged,
+            "mgr_1",
+            Some(&staff),
+            None,
+        );
+        assert_eq!(review.hours_delta, -8.0);
+        assert_eq!(review.updated_staff_total_hours, 0.0);
+        assert_eq!(review.notification_category, Some(NotificationCategory::ShiftDenied));
+        assert!(review
+            .notification_title
+            .as_deref()
+            .unwrap_or("")
+            .contains("Flagged"));
+    }
+
+    #[test]
+    fn exports_team_hours_csv_with_utilization_percentages() {
+        let staff = vec![StaffDirectoryEntry {
+            uid: "u1".to_string(),
+            display_name: "Patel, Maya".to_string(),
+            role: UserRole::Manager,
+            department: "Operations".to_string(),
+            total_hours_worked: 20.0,
+            scheduled_hours_this_week: 0.0,
+            weekly_hours_target: 40.0,
+            last_assigned_at: String::new(),
+            is_sample_roster: false,
+        }];
+        let shift = Shift {
+            id: "s1".to_string(),
+            title: "Desk".to_string(),
+            department: "Operations".to_string(),
+            date: "2026-11-23".to_string(),
+            start_time: "08:00".to_string(),
+            end_time: "16:00".to_string(),
+            duration_hours: 8.0,
+            assigned_uid: "u1".to_string(),
+            assigned_name: "Patel, Maya".to_string(),
+            candidate_uids: vec![],
+            status: ShiftStatus::Scheduled,
+            visibility: "team".to_string(),
+            fairness_note: String::new(),
+            created_by: "mgr".to_string(),
+        };
+        let csv = export_team_hours_csv(&staff, &[shift]);
+        assert!(csv.contains("\"Patel, Maya\",Operations,manager,20.00,8.00,40.0,70%"));
+    }
 }

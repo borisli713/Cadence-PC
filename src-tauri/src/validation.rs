@@ -324,4 +324,78 @@ mod tests {
         );
         assert!(!denied_drop.valid);
     }
+
+    #[test]
+    fn validates_ids_breaks_and_overnight_shift_inputs() {
+        assert!(is_valid_id("shift_abc-123"));
+        assert!(!is_valid_id(""));
+        assert!(!is_valid_id("shift/abc"));
+        assert_eq!(clamp_str("  Operations  ", 5), "Opera");
+
+        let overnight = validate_shift_input(
+            "Overnight Guard",
+            "Security",
+            "2026-11-24",
+            "22:00",
+            "06:00",
+        );
+        assert!(overnight.valid);
+
+        let too_short_break = validate_shift_report_input(
+            "Morning",
+            "Operations",
+            "2026-11-24",
+            "08:00",
+            "16:00",
+            240,
+        );
+        assert!(!too_short_break.valid);
+
+        let empty_title = validate_shift_input("  ", "Operations", "2026-11-24", "08:00", "16:00");
+        assert!(!empty_title.valid);
+    }
+
+    #[test]
+    fn enforces_completed_lock_swap_target_and_manager_override() {
+        let completed = sample_shift(ShiftStatus::Completed, "u1");
+        let completed_res = validate_schedule_change_request(
+            &completed,
+            "u1",
+            true,
+            &ScheduleChangeType::TimeChange,
+            "2026-11-23",
+            "08:00",
+            "16:00",
+            "",
+            "Adjust time",
+        );
+        assert!(!completed_res.valid);
+
+        let assigned = sample_shift(ShiftStatus::Scheduled, "u1");
+        let swap_missing_peer = validate_schedule_change_request(
+            &assigned,
+            "u1",
+            false,
+            &ScheduleChangeType::Swap,
+            "2026-11-23",
+            "07:00",
+            "15:00",
+            "",
+            "Need trade",
+        );
+        assert!(!swap_missing_peer.valid);
+
+        let manager_override = validate_schedule_change_request(
+            &assigned,
+            "mgr_1",
+            true,
+            &ScheduleChangeType::TimeChange,
+            "2026-11-23",
+            "08:00",
+            "16:00",
+            "",
+            "Schedule rebalance",
+        );
+        assert!(manager_override.valid);
+    }
 }

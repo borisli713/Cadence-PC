@@ -25,6 +25,10 @@ import {
   WeekSlotConfig,
 } from '../types/cadence';
 import { openGoogleCalendarForShift } from '../utils/calendarExport';
+import {
+  invokeValidateScheduleChange,
+  invokeValidateShift,
+} from '../utils/tauriBridge';
 import { ModalShell, ShiftStatusChip } from './UiPrimitives';
 
 interface ShiftDetailDialogProps {
@@ -260,12 +264,28 @@ export function AddShiftDialog({
         ? 'Open shift posted to team calendar'
         : `Assigned directly (${formatHours(computeShiftHours(startTime, endTime))}h)`;
 
+    const cleanTitle = title.trim() || 'Operations Shift';
+    const cleanDept = department.trim() || 'Operations';
+
     setSaving(true);
     setErrorMsg(null);
     try {
+      const rustValidation = await invokeValidateShift(
+        cleanTitle,
+        cleanDept,
+        date,
+        startTime,
+        endTime,
+      );
+      if (rustValidation && !rustValidation.valid) {
+        setErrorMsg(rustValidation.errorMessage ?? 'Invalid shift schedule.');
+        setSaving(false);
+        return;
+      }
+
       await onCreate({
-        title: title.trim() || 'Operations Shift',
-        department: department.trim() || 'Operations',
+        title: cleanTitle,
+        department: cleanDept,
         date,
         startTime,
         endTime,
@@ -516,13 +536,29 @@ export function EditShiftDialog({
     const effectiveStatus = !assignedUid ? ShiftStatus.OPEN : status;
     const assignedName = member?.displayName ?? (assignedUid ? shift.assignedName : '');
 
+    const cleanTitle = title.trim() || 'Shift';
+    const cleanDept = department.trim() || 'Operations';
+
     setSaving(true);
     setErrorMsg(null);
     try {
+      const rustValidation = await invokeValidateShift(
+        cleanTitle,
+        cleanDept,
+        date,
+        startTime,
+        endTime,
+      );
+      if (rustValidation && !rustValidation.valid) {
+        setErrorMsg(rustValidation.errorMessage ?? 'Invalid shift details.');
+        setSaving(false);
+        return;
+      }
+
       await onSave({
         shiftId: shift.id,
-        title: title.trim() || 'Shift',
-        department: department.trim() || 'Operations',
+        title: cleanTitle,
+        department: cleanDept,
         date,
         startTime,
         endTime,
@@ -848,6 +884,25 @@ export function RequestChangeDialog({
     setSaving(true);
     setErrorMsg(null);
     try {
+      const rustValidation = await invokeValidateScheduleChange(
+        selectedShift,
+        currentUid,
+        isManager,
+        changeType,
+        proposedDate,
+        proposedStart,
+        proposedEnd,
+        proposedAssigneeUid,
+        reason.trim(),
+      );
+      if (rustValidation && !rustValidation.valid) {
+        setErrorMsg(
+          rustValidation.errorMessage ?? 'Schedule change request failed validation.',
+        );
+        setSaving(false);
+        return;
+      }
+
       await onSubmit({
         shift: selectedShift,
         type: changeType,

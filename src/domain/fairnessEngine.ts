@@ -12,11 +12,6 @@ import {
   TimeOffRequest,
   WeekSlotConfig,
 } from '../types/cadence';
-import {
-  invokeBuildFairnessPlan,
-  invokeBuildOpenShiftPlan,
-  invokeGenerateWeeklySchedule,
-} from '../utils/tauriBridge';
 
 export const DEFAULT_WEEK_SLOTS: WeekSlotConfig[] = [
   {
@@ -208,33 +203,6 @@ export function rankCandidatesByFairness(
   });
 
   return ranked;
-}
-
-export function pickFairestStaffForShift(
-  candidateUids: string[],
-  staffDirectory: StaffDirectoryEntry[],
-  allShifts: Shift[],
-  targetDate: string,
-  startTime: string,
-  endTime: string,
-  excludeShiftId: string | null = null,
-  timeOffRequests: TimeOffRequest[] = [],
-): FairnessScoreBreakdown | null {
-  const ranked = rankCandidatesByFairness(
-    candidateUids,
-    staffDirectory,
-    allShifts,
-    targetDate,
-    startTime,
-    endTime,
-    excludeShiftId,
-    timeOffRequests,
-  );
-  return (
-    ranked.find((item) => !item.hasConflict && !item.hasApprovedTimeOff) ??
-    ranked[0] ??
-    null
-  );
 }
 
 export function buildFairnessArrangementPlan(
@@ -581,71 +549,6 @@ export function generateWeeklyFairnessSchedule(
   }
 
   return planned;
-}
-
-export async function buildFairnessArrangementPlanWithRust(
-  shifts: Shift[],
-  staffDirectory: StaffDirectoryEntry[],
-  timeOffRequests: TimeOffRequest[] = [],
-): Promise<FairnessArrangementItem[]> {
-  const rustResult = await invokeBuildFairnessPlan(
-    shifts,
-    staffDirectory,
-    timeOffRequests,
-  );
-  if (rustResult !== null) return rustResult;
-  return buildFairnessArrangementPlan(shifts, staffDirectory, timeOffRequests);
-}
-
-export async function buildOpenShiftAssignmentPlanWithRust(
-  shifts: Shift[],
-  staffDirectory: StaffDirectoryEntry[],
-  submissions: ShiftSubmission[] = [],
-  timeOffRequests: TimeOffRequest[] = [],
-  requireExplicitSubmission = false,
-): Promise<OpenShiftAssignmentItem[]> {
-  const rustResult = await invokeBuildOpenShiftPlan(
-    shifts,
-    staffDirectory,
-    submissions,
-    timeOffRequests,
-    requireExplicitSubmission,
-  );
-  if (rustResult !== null) return rustResult;
-  return buildOpenShiftAssignmentPlan(
-    shifts,
-    staffDirectory,
-    submissions,
-    timeOffRequests,
-    requireExplicitSubmission,
-  );
-}
-
-export async function generateWeeklyFairnessScheduleWithRust(
-  weekStartDate: string,
-  slots: WeekSlotConfig[],
-  staffDirectory: StaffDirectoryEntry[],
-  existingShifts: Shift[],
-  submissions: ShiftSubmission[],
-  timeOffRequests: TimeOffRequest[],
-): Promise<GeneratedShiftSpec[]> {
-  const rustResult = await invokeGenerateWeeklySchedule(
-    weekStartDate,
-    slots,
-    staffDirectory,
-    existingShifts,
-    submissions,
-    timeOffRequests,
-  );
-  if (rustResult !== null) return rustResult;
-  return generateWeeklyFairnessSchedule(
-    weekStartDate,
-    slots,
-    staffDirectory,
-    existingShifts,
-    submissions,
-    timeOffRequests,
-  );
 }
 
 export function formatHours(value: number): string {

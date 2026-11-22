@@ -1,6 +1,6 @@
 import type { Shift } from '../types/cadence';
 import { addDaysIso, parseTimeToMinutes } from '../domain/fairnessEngine';
-import { invokeSaveIcsFile, openExternalUrl } from './tauriBridge';
+import { invokeGenerateIcs, invokeSaveIcsFile, openExternalUrl } from './tauriBridge';
 
 function toIcsTimestamp(dateIso: string, hhmm: string): string {
   const ymd = dateIso.replace(/-/g, '');
@@ -69,7 +69,7 @@ export async function exportIcsFile(
     return desktopSaved;
   }
 
-  const content = generateIcsContent(shifts);
+  const content = (await invokeGenerateIcs(shifts)) ?? generateIcsContent(shifts);
   const blob = new Blob([content], { type: 'text/calendar;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');

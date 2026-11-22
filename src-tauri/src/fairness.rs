@@ -750,4 +750,67 @@ mod tests {
         assert_eq!(ranked[0].uid, "u_high");
         assert!(ranked[1].has_approved_time_off);
     }
+
+    #[test]
+    fn assigns_open_shifts_by_submission_and_skips_existing_weekly_slots() {
+        let staff = sample_staff();
+        let open_shift = Shift {
+            id: "s_open".to_string(),
+            title: "Evening Dispatch".to_string(),
+            department: "Operations".to_string(),
+            date: "2026-11-23".to_string(),
+            start_time: "15:00".to_string(),
+            end_time: "23:00".to_string(),
+            duration_hours: 8.0,
+            assigned_uid: String::new(),
+            assigned_name: String::new(),
+            candidate_uids: vec![],
+            status: ShiftStatus::Open,
+            visibility: "team".to_string(),
+            fairness_note: String::new(),
+            created_by: "mgr".to_string(),
+        };
+        let submissions = vec![ShiftSubmission {
+            id: "sub_1".to_string(),
+            staff_uid: "u_high".to_string(),
+            staff_name: "Liam Brooks".to_string(),
+            department: "Support".to_string(),
+            date: "2026-11-23".to_string(),
+            start_time: "15:00".to_string(),
+            end_time: "23:00".to_string(),
+            shift_title: "Evening".to_string(),
+            notes: "Can cover evening".to_string(),
+            status: SubmissionStatus::Submitted,
+        }];
+
+        let plan = build_open_shift_assignment_plan(
+            std::slice::from_ref(&open_shift),
+            &staff,
+            &submissions,
+            &[],
+            true,
+        );
+        assert_eq!(plan.len(), 1);
+        assert_eq!(plan[0].chosen_uid, "u_high");
+        assert!(plan[0].reason.contains("Matched staff shift submission"));
+
+        let slots = vec![WeekSlotConfig {
+            id: "evening".to_string(),
+            label: "Evening".to_string(),
+            title: "Evening Dispatch".to_string(),
+            department: "Operations".to_string(),
+            start_time: "15:00".to_string(),
+            end_time: "23:00".to_string(),
+        }];
+        let weekly = generate_weekly_fairness_schedule(
+            "2026-11-23",
+            &slots,
+            &staff,
+            &[open_shift],
+            &submissions,
+            &[],
+        );
+        assert_eq!(weekly.len(), 6);
+        assert!(weekly.iter().all(|w| w.date != "2026-11-23"));
+    }
 }

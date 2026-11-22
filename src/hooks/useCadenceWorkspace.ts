@@ -1,24 +1,19 @@
 import { useCallback, useEffect, useState } from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { auth, unwrapFirestoreErrorMessage } from '../firebase';
-import {
-  buildFairnessArrangementPlanWithRust,
-  buildOpenShiftAssignmentPlanWithRust,
-  DEFAULT_WEEK_SLOTS,
-  generateWeeklyFairnessScheduleWithRust,
-} from '../domain/fairnessEngine';
+import { DEFAULT_WEEK_SLOTS } from '../domain/fairnessEngine';
 import {
   acceptAllPendingChanges,
   addRosterStaffMember,
-  commitFairnessArrangementPlan,
-  commitOpenShiftAssignmentPlan,
-  commitWeeklyScheduleBatch,
+  commitFairnessPlanInRust,
+  commitOpenShiftPlanInRust,
   createShift,
   createTimeOffRequest,
   decideScheduleChange,
   decideTimeOffRequest,
   deleteShift,
   ensureVerifiedUserProvisioned,
+  generateWeeklyScheduleInRust,
   markAllNotificationsRead,
   markNotificationRead,
   seedSampleWorkspaceData,
@@ -44,6 +39,7 @@ import {
 import { signOutUser } from '../services/authService';
 import {
   ApprovalStatus,
+  DerivedWorkspaceInsights,
   ProfileUiState,
   PushNotificationRecord,
   ScheduleChangeRequest,
@@ -64,12 +60,15 @@ import {
 import {
   buildManagerWorkPayloads,
   dispatchOsNotification,
-  filterNewManagerWorkAlerts,
-  filterUnnotifiedAlerts,
+  filterNewManagerWorkAlertsWithRust,
+  filterUnnotifiedAlertsWithRust,
 } from '../utils/notificationHelper';
 import {
   getDesktopAppVersion,
   invokeBuildManagerWorkPayloads,
+  invokeLoadWeekSlots,
+  invokeSaveWeekSlots,
+  invokeSyncWorkspaceSnapshot,
   isTauriDesktop,
 } from '../utils/tauriBridge';
 import { checkForGitHubUpdate } from '../utils/updateChecker';
@@ -114,6 +113,8 @@ export function useCadenceWorkspace() {
   const [notifications, setNotifications] = useState<PushNotificationRecord[]>(
     [],
   );
+  const [rustInsights, setRustInsights] =
+    useState<DerivedWorkspaceInsights | null>(null);
   const [streamError, setStreamError] = useState<string | null>(null);
 
   const [appVersion, setAppVersion] = useState('1.0.0');
@@ -149,6 +150,7 @@ export function useCadenceWorkspace() {
         setShiftSubmissions([]);
         setTimeOffRequests([]);
         setNotifications([]);
+        setRustInsights(null);
         setStreamError(null);
       }
     });
@@ -237,17 +239,58 @@ export function useCadenceWorkspace() {
     };
   }, [authUser, activeUid, isManager]);
 
-  // OS / Windows desktop toast dispatch for unread notifications
+  // Mirror live Firestore snapshot into Rust WorkspaceCacheState to derive KPIs, conflicts & roster stats
+  useEffect(() => {
+    if (!activeProfile || !isTauriDesktop()) {
+      setRustInsights(null);
+      return;
+    }
+    let cancelled = false;
+    void invokeSyncWorkspaceSnapshot({
+      profile: activeProfile,
+      staffDirectory,
+      shifts,
+      scheduleChanges,
+      shiftReports,
+      shiftSubmissions,
+      timeOffRequests,
+      notifications,
+    }).then((derived) => {
+      if (!cancelled && derived) {
+        setRustInsights(derived);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    activeProfile,
+    staffDirectory,
+    shifts,
+    scheduleChanges,
+    shiftReports,
+    shiftSubmissions,
+    timeOffRequests,
+    notifications,
+  ]);
+
+  // OS / Windows desktop toast dispatch for unread notifications (deduplicated in Rust LocalStoreState)
   useEffect(() => {
     if (!activeProfile) return;
-    const fresh = filterUnnotifiedAlerts(
+    let cancelled = false;
+    void filterUnnotifiedAlertsWithRust(
       activeProfile.uid,
       notifications,
       activeProfile.pushNotificationsEnabled,
-    );
-    fresh.slice(0, 3).forEach((item) => {
-      void dispatchOsNotification(item.title, item.message);
+    ).then((fresh) => {
+      if (cancelled) return;
+      fresh.slice(0, 3).forEach((item) => {
+        void dispatchOsNotification(item.title, item.message);
+      });
     });
+    return () => {
+      cancelled = true;
+    };
   }, [notifications, activeProfile]);
 
   // OS / Windows toast alerts for manager queues (pending changes, time off, submitted reports)
@@ -270,11 +313,12 @@ export function useCadenceWorkspace() {
           timeOffRequests,
           shiftReports,
         );
-      const fresh = filterNewManagerWorkAlerts(
+      const fresh = await filterNewManagerWorkAlertsWithRust(
         activeProfile.uid,
         payloads,
         activeProfile.pushNotificationsEnabled,
       );
+      if (cancelled) return;
       fresh.slice(0, 3).forEach((item) => {
         void dispatchOsNotification(item.title, item.message);
       });
@@ -301,9 +345,16 @@ export function useCadenceWorkspace() {
     }
   }, []);
 
-  // Load app version, check updates once on launch, and subscribe to Tauri tray Check Updates
+  // Load app version, Rust-persisted week slots, update check, and tray events
   useEffect(() => {
     void getDesktopAppVersion().then(setAppVersion);
+    if (isTauriDesktop()) {
+      void invokeLoadWeekSlots().then((loaded) => {
+        if (Array.isArray(loaded) && loaded.length > 0) {
+          setWeekSlots(loaded);
+        }
+      });
+    }
     void runUpdateCheck(true);
 
     let unlisten: (() => void) | null = null;
@@ -328,15 +379,25 @@ export function useCadenceWorkspace() {
     setAuthRevision((r) => r + 1);
   }, []);
 
-  const saveWeekSlots = useCallback((slots: WeekSlotConfig[]) => {
-    setWeekSlots(slots);
-    try {
-      localStorage.setItem(WEEK_SLOTS_STORAGE_KEY, JSON.stringify(slots));
-    } catch {
-      // Storage unavailable
-    }
-    showFeedback('Updated weekly shift slot templates.');
-  }, [showFeedback]);
+  const saveWeekSlots = useCallback(
+    async (slots: WeekSlotConfig[]) => {
+      try {
+        const persisted = isTauriDesktop()
+          ? await invokeSaveWeekSlots(slots)
+          : slots;
+        setWeekSlots(persisted);
+        try {
+          localStorage.setItem(WEEK_SLOTS_STORAGE_KEY, JSON.stringify(persisted));
+        } catch {
+          // Storage unavailable
+        }
+        showFeedback('Updated weekly shift slot templates.');
+      } catch (err) {
+        showFeedback(unwrapFirestoreErrorMessage(err));
+      }
+    },
+    [showFeedback],
+  );
 
   const data: WorkspaceUiData | null = activeProfile
     ? {
@@ -348,6 +409,7 @@ export function useCadenceWorkspace() {
         shiftSubmissions,
         timeOffRequests,
         notifications,
+        rustInsights,
         streamError,
       }
     : null;
@@ -466,6 +528,7 @@ export function useCadenceWorkspace() {
           params.proposedAssigneeUid,
           params.proposedAssigneeName,
           params.reason,
+          activeProfile.role === UserRole.MANAGER,
         );
         showFeedback('Schedule change request submitted.');
       },
@@ -549,35 +612,35 @@ export function useCadenceWorkspace() {
       },
       commitFairnessPlan: async () => {
         if (!activeProfile) return 0;
-        const plan = await buildFairnessArrangementPlanWithRust(
+        return commitFairnessPlanInRust(
           shifts,
           staffDirectory,
           timeOffRequests,
+          activeProfile.uid,
         );
-        return commitFairnessArrangementPlan(plan, activeProfile.uid);
       },
       commitOpenShiftPlan: async () => {
         if (!activeProfile) return 0;
-        const plan = await buildOpenShiftAssignmentPlanWithRust(
+        return commitOpenShiftPlanInRust(
           shifts,
           staffDirectory,
           shiftSubmissions,
           timeOffRequests,
           false,
+          activeProfile.uid,
         );
-        return commitOpenShiftAssignmentPlan(plan, activeProfile.uid);
       },
       generateWeeklySchedule: async (mondayIso: string) => {
         if (!activeProfile) return { assigned: 0, open: 0 };
-        const spec = await generateWeeklyFairnessScheduleWithRust(
+        return generateWeeklyScheduleInRust(
           mondayIso,
           weekSlots,
           staffDirectory,
           shifts,
           shiftSubmissions,
           timeOffRequests,
+          activeProfile.uid,
         );
-        return commitWeeklyScheduleBatch(spec, activeProfile.uid);
       },
       submitAvailabilityBatch: async (params: {
         dates: string[];

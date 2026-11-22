@@ -7,35 +7,38 @@ import { SurfaceCard } from './UiPrimitives';
 interface StaffHoursBalanceChartProps {
   staffDirectory: StaffDirectoryEntry[];
   shifts: Shift[];
+  rustRows?: StaffChartRow[] | null;
   title?: string;
 }
 
 export function StaffHoursBalanceChart({
   staffDirectory,
   shifts,
+  rustRows,
   title = 'Team Hours & Fairness Balance',
 }: StaffHoursBalanceChartProps) {
-  const [rustRows, setRustRows] = useState<StaffChartRow[] | null>(null);
+  const [fetchedRows, setFetchedRows] = useState<StaffChartRow[] | null>(null);
 
   useEffect(() => {
-    if (staffDirectory.length === 0) return;
+    if (rustRows || staffDirectory.length === 0) return;
     let cancelled = false;
     void invokeComputeStaffChart(staffDirectory, shifts).then((res) => {
-      if (!cancelled && res) setRustRows(res);
+      if (!cancelled && res) setFetchedRows(res);
     });
     return () => {
       cancelled = true;
     };
-  }, [staffDirectory, shifts]);
+  }, [rustRows, staffDirectory, shifts]);
 
   if (staffDirectory.length === 0) {
     return null;
   }
 
+  const activeRows = rustRows ?? fetchedRows;
   const scheduledByUid = computeScheduledHoursByUid(shifts);
 
-  const rows = rustRows
-    ? rustRows.map((r) => ({
+  const rows = activeRows
+    ? activeRows.map((r) => ({
         uid: r.uid,
         name: r.displayName,
         department: r.department,

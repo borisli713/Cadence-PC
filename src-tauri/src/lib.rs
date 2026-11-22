@@ -1,19 +1,37 @@
 pub mod analytics;
 pub mod approvals;
+pub mod audit_log;
 pub mod auth_oauth;
+pub mod availability_planner;
+pub mod backup_snapshot;
+pub mod calendar_grid;
+pub mod compliance;
 pub mod deep_link;
+pub mod desktop_runtime;
+pub mod diagnostics;
 pub mod fairness;
 pub mod firebase_client;
 pub mod history;
 pub mod ics;
+pub mod local_store;
 pub mod models;
 pub mod notifications;
+pub mod offline_queue;
+pub mod payroll_rules;
 pub mod reports;
+pub mod repository;
 pub mod roster;
+pub mod schedule_export;
 pub mod scheduler;
 pub mod seeder;
+pub mod shift_templates;
+pub mod swap_matcher;
+pub mod sync_reconciler;
+pub mod team_digest;
+pub mod time_off_planner;
 pub mod updater;
 pub mod validation;
+pub mod workspace_cache;
 
 use std::fs;
 use tauri::{
@@ -27,6 +45,7 @@ use tauri_plugin_notification::NotificationExt;
 use crate::approvals::{AcceptAllPlan, PlannedChangeDecision, PlannedTimeOffDecision};
 use crate::auth_oauth::OAuthFlowState;
 use crate::history::{HistoryFilterKind, HistoryQueryResult};
+use crate::local_store::LocalStoreState;
 use crate::models::{
     ApprovalStatus, DashboardKpis, ExternalOAuthResult, FairnessArrangementItem,
     FairnessScoreBreakdown, GeneratedShiftSpec, NotificationWorkPayload, OpenShiftAssignmentItem,
@@ -36,6 +55,7 @@ use crate::models::{
 };
 use crate::reports::PlannedReportReview;
 use crate::seeder::SampleWorkspaceBundle;
+use crate::workspace_cache::WorkspaceCacheState;
 
 #[tauri::command]
 fn get_app_version() -> String {
@@ -451,6 +471,11 @@ async fn check_github_update_cmd() -> Result<UpdateCheckResult, String> {
 pub fn run() {
     tauri::Builder::default()
         .manage(OAuthFlowState::default())
+        .manage(WorkspaceCacheState::default())
+        .manage(LocalStoreState::default())
+        .manage(offline_queue::OfflineQueueState::default())
+        .manage(audit_log::AuditLogState::default())
+        .manage(shift_templates::ShiftTemplatesState::default())
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             let handled_auth = deep_link::handle_cli_args_for_deep_link(app, &args);
             deep_link::focus_main_window(app);
@@ -538,6 +563,74 @@ pub fn run() {
             save_ics_file_cmd,
             send_native_notification_cmd,
             check_github_update_cmd,
+            repository::repo_ensure_verified_user_provisioned_cmd,
+            repository::repo_update_user_preferences_cmd,
+            repository::repo_create_shift_cmd,
+            repository::repo_update_shift_cmd,
+            repository::repo_delete_shift_cmd,
+            repository::repo_submit_schedule_change_cmd,
+            repository::repo_decide_schedule_change_cmd,
+            repository::repo_accept_all_pending_cmd,
+            repository::repo_submit_shift_report_cmd,
+            repository::repo_verify_or_flag_report_cmd,
+            repository::repo_mark_notification_read_cmd,
+            repository::repo_mark_all_notifications_read_cmd,
+            repository::repo_send_test_notification_cmd,
+            repository::repo_commit_fairness_plan_cmd,
+            repository::repo_commit_open_shift_plan_cmd,
+            repository::repo_generate_weekly_schedule_cmd,
+            repository::repo_submit_availability_batch_cmd,
+            repository::repo_withdraw_submission_cmd,
+            repository::repo_create_time_off_cmd,
+            repository::repo_withdraw_time_off_cmd,
+            repository::repo_decide_time_off_cmd,
+            repository::repo_add_roster_staff_cmd,
+            repository::repo_toggle_manager_role_cmd,
+            repository::repo_seed_sample_workspace_cmd,
+            workspace_cache::sync_workspace_snapshot_cmd,
+            workspace_cache::get_workspace_insights_cmd,
+            local_store::load_week_slots_cmd,
+            local_store::save_week_slots_cmd,
+            local_store::filter_unnotified_alerts_cmd,
+            local_store::filter_new_manager_work_alerts_cmd,
+            desktop_runtime::get_desktop_runtime_info_cmd,
+            compliance::analyze_workforce_compliance_cmd,
+            schedule_export::generate_schedule_markdown_cmd,
+            schedule_export::generate_payroll_report_html_cmd,
+            schedule_export::save_payroll_summary_cmd,
+            sync_reconciler::reconcile_workspace_sync_cmd,
+            sync_reconciler::verify_three_way_sync_integrity_cmd,
+            sync_reconciler::repair_scheduled_hours_drift_cmd,
+            offline_queue::queue_offline_mutation_cmd,
+            offline_queue::list_offline_mutations_cmd,
+            offline_queue::clear_offline_mutation_cmd,
+            offline_queue::flush_offline_mutations_cmd,
+            audit_log::append_audit_event_cmd,
+            audit_log::query_audit_log_cmd,
+            audit_log::verify_audit_chain_cmd,
+            audit_log::export_audit_log_cmd,
+            shift_templates::list_shift_templates_cmd,
+            shift_templates::save_shift_template_cmd,
+            shift_templates::delete_shift_template_cmd,
+            shift_templates::project_template_capacity_cmd,
+            calendar_grid::build_month_calendar_grid_cmd,
+            calendar_grid::build_weekly_coverage_matrix_cmd,
+            calendar_grid::compute_staff_availability_overlap_cmd,
+            backup_snapshot::validate_workspace_backup_cmd,
+            backup_snapshot::export_workspace_backup_cmd,
+            payroll_rules::compute_payroll_breakdown_cmd,
+            payroll_rules::export_payroll_breakdown_csv_cmd,
+            diagnostics::run_desktop_preflight_cmd,
+            team_digest::build_weekly_team_briefing_cmd,
+            team_digest::save_weekly_briefing_markdown_cmd,
+            availability_planner::plan_staff_availability_batch_cmd,
+            availability_planner::evaluate_availability_coverage_cmd,
+            availability_planner::render_availability_heatmap_cmd,
+            swap_matcher::recommend_swap_candidates_cmd,
+            swap_matcher::simulate_swap_impact_cmd,
+            time_off_planner::analyze_time_off_shift_conflicts_cmd,
+            time_off_planner::compute_department_absence_calendar_cmd,
+            time_off_planner::evaluate_time_off_request_impact_cmd,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Cadence desktop application");
