@@ -1,4 +1,4 @@
-![Cadence PC — Desktop Client for Shift Reporting & Management](public/assets/aistudio/Cadence-PC_c5808a42.jpg)
+![Cadence PC — Desktop Client for Shift Reporting & Management](public/assets/readme/Cadence-PC.jpg)
 
 # Cadence — Windows Desktop Shift Reporting & Fair Scheduling (Rust + Tauri)
 

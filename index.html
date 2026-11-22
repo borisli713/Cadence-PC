@@ -20,9 +20,101 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400..700;1,9..40,400..700&family=IBM+Plex+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap"
       rel="stylesheet"
     />
+    <style>
+      .cadence-preboot {
+        min-height: 100vh;
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        box-sizing: border-box;
+        background-color: #f8fafc;
+        background-image: radial-gradient(64rem 32rem at 50% -8rem, rgba(37, 99, 235, 0.06), transparent 70%);
+        color: #0f172a;
+      }
+      .cadence-preboot-inner { width: 100%; max-width: 448px; }
+      .cadence-preboot-brand { display: flex; align-items: center; gap: 14px; margin-bottom: 24px; }
+      .cadence-preboot-logo {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        background: #ffffff;
+        object-fit: cover;
+      }
+      .cadence-preboot-name {
+        font-family: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+        font-size: 20px;
+        font-weight: 700;
+        line-height: 1.2;
+        letter-spacing: -0.02em;
+        color: #0f172a;
+      }
+      .cadence-preboot-tagline { font-size: 12px; color: #64748b; margin-top: 2px; }
+      .cadence-preboot-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        padding: 28px;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+      }
+      .cadence-preboot-title {
+        font-family: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+        font-size: 18px;
+        font-weight: 700;
+        color: #0f172a;
+      }
+      .cadence-preboot-desc { font-size: 12px; color: #475569; margin-top: 6px; }
+      .cadence-preboot-track {
+        height: 6px;
+        width: 100%;
+        border-radius: 9999px;
+        background: #f1f5f9;
+        overflow: hidden;
+        margin-top: 20px;
+      }
+      .cadence-preboot-fill {
+        height: 100%;
+        width: 40%;
+        border-radius: 9999px;
+        background: #2563eb;
+        animation: cadencePrebootSweep 1.35s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+      }
+      @keyframes cadencePrebootSweep {
+        0% { transform: translateX(-110%); }
+        100% { transform: translateX(265%); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .cadence-preboot-fill { animation: none; transform: translateX(0); width: 100%; }
+      }
+    </style>
   </head>
   <body class="bg-slate-50 text-slate-900 antialiased selection:bg-blue-100 selection:text-blue-900">
-    <div id="root"></div>
+    <div id="root">
+      <div class="cadence-preboot">
+        <div class="cadence-preboot-inner">
+          <div class="cadence-preboot-brand">
+            <img src="/cadence-icon.png" alt="Cadence" class="cadence-preboot-logo" />
+            <div>
+              <div class="cadence-preboot-name">Cadence</div>
+              <div class="cadence-preboot-tagline">
+                Verified shift reporting &amp; fair scheduling
+              </div>
+            </div>
+          </div>
+          <div class="cadence-preboot-card">
+            <div class="cadence-preboot-title">Preparing Cadence workspace</div>
+            <div class="cadence-preboot-desc">
+              Checking your verified session and local workspace preferences.
+            </div>
+            <div class="cadence-preboot-track">
+              <div class="cadence-preboot-fill"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -62,3 +62,34 @@
 .tabular-nums {
   font-variant-numeric: tabular-nums;
 }
+
+.cadence-launch-surface {
+  background-color: #f8fafc;
+  background-image:
+    radial-gradient(64rem 32rem at 50% -8rem, rgba(37, 99, 235, 0.06), transparent 70%),
+    linear-gradient(to right, rgba(15, 23, 42, 0.025) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 23, 42, 0.025) 1px, transparent 1px);
+  background-size: 100% 100%, 32px 32px, 32px 32px;
+}
+
+@keyframes cadence-progress-sweep {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(265%);
+  }
+}
+
+.cadence-progress-bar {
+  animation: cadence-progress-sweep 1.35s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cadence-progress-bar {
+    animation: none;
+    transform: translateX(0);
+    width: 100%;
+  }
+}

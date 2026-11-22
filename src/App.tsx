@@ -27,6 +27,7 @@ import {
   UserRole,
 } from './types/cadence';
 import { AuthScreen } from './components/AuthScreen';
+import { LoadingScreen } from './components/LoadingScreen';
 import {
   AppUpdateDialog,
   ProfileSettingsDialog,
@@ -164,13 +165,7 @@ export function App() {
   }, [data]);
 
   if (!authReady) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
-        <div className="text-sm font-semibold text-slate-500">
-          Initializing Cadence workspace...
-        </div>
-      </div>
-    );
+    return <LoadingScreen stage="initializing" appVersion={appVersion} />;
   }
 
   if (!authUser || !authUser.emailVerified) {
@@ -184,11 +179,11 @@ export function App() {
 
   if (profileState.status === 'loading' || !data) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
-        <div className="bg-white border border-slate-200 rounded-xl px-6 py-5 text-sm text-slate-700 font-medium">
-          Syncing verified workspace profile...
-        </div>
-      </div>
+      <LoadingScreen
+        stage="syncing"
+        appVersion={appVersion}
+        userEmail={authUser.email}
+      />
     );
   }
 
