@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Calendar, Check } from 'lucide-react';
 import { isTauriDesktop } from '../utils/tauriBridge';
+import { useI18n } from '../i18n/I18nContext';
 
 export type LoadingStage = 'initializing' | 'syncing';
 
@@ -20,30 +21,31 @@ export function LoadingScreen({
   appVersion,
   userEmail,
 }: LoadingScreenProps) {
+  const { t } = useI18n();
   const [iconError, setIconError] = useState(false);
   const desktop = isTauriDesktop();
 
   const heading =
     stage === 'initializing'
-      ? 'Preparing Cadence workspace'
-      : 'Syncing verified workspace';
+      ? t('win_loading_preparing')
+      : t('win_loading_syncing_title');
 
   const description =
     stage === 'initializing'
-      ? 'Checking your verified session and local workspace preferences.'
-      : 'Connecting your team roster, active shifts, and live updates.';
+      ? t('win_loading_preparing_desc')
+      : t('win_loading_syncing_desc');
 
   const steps: StepItem[] = [
     {
-      label: 'Session & account verification',
+      label: t('win_step_session'),
       state: stage === 'syncing' ? 'done' : 'active',
     },
     {
-      label: 'Workspace profile & team roster',
+      label: t('win_step_profile'),
       state: stage === 'syncing' ? 'active' : 'pending',
     },
     {
-      label: 'Schedule streams & notifications',
+      label: t('win_step_streams'),
       state: 'pending',
     },
   ];
@@ -64,17 +66,17 @@ export function LoadingScreen({
           ) : (
             <img
               src="/cadence-icon.png"
-              alt="Cadence logo"
+              alt={t('app_name')}
               onError={() => setIconError(true)}
               className="w-11 h-11 rounded-xl border border-slate-200 bg-white shadow-xs object-cover shrink-0"
             />
           )}
           <div className="min-w-0">
             <div className="text-xl font-bold text-slate-900 leading-tight tracking-tight">
-              Cadence
+              {t('app_name')}
             </div>
             <div className="text-xs text-slate-500 truncate">
-              Verified shift reporting &amp; fair scheduling
+              {t('tagline')}
             </div>
           </div>
         </div>
@@ -143,7 +145,7 @@ export function LoadingScreen({
 
         <div className="flex items-center justify-between text-[11px] text-slate-500 px-1">
           <span>
-            {desktop ? 'Cadence Desktop · Windows' : 'Cadence Workspace'}
+            {desktop ? t('win_desktop_windows') : t('win_workspace_label')}
           </span>
           <span className="font-mono-tabular">v{appVersion}</span>
         </div>

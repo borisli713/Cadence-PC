@@ -3,6 +3,7 @@ import {
   Bell,
   Download,
   ExternalLink,
+  Globe,
   LogOut,
   RefreshCw,
   Save,
@@ -11,6 +12,7 @@ import {
 import type { UpdateCheckResult, UserProfile } from '../types/cadence';
 import { isTauriDesktop, openExternalUrl } from '../utils/tauriBridge';
 import { GITHUB_RELEASES_PAGE_URL } from '../utils/updateChecker';
+import { LanguagePreference, useI18n } from '../i18n/I18nContext';
 import { ModalShell, StatusChip } from './UiPrimitives';
 
 interface ProfileSettingsDialogProps {
@@ -43,6 +45,7 @@ export function ProfileSettingsDialog({
   onOpenUpdateDialog,
   onSignOut,
 }: ProfileSettingsDialogProps) {
+  const { preference, languages, setLanguagePreference, t } = useI18n();
   const [displayName, setDisplayName] = useState(profile.displayName);
   const [department, setDepartment] = useState(profile.department);
   const [weeklyTarget, setWeeklyTarget] = useState(
@@ -68,11 +71,11 @@ export function ProfileSettingsDialog({
     e.preventDefault();
     const targetNum = Number.parseInt(weeklyTarget, 10);
     if (!displayName.trim()) {
-      setErrorMsg('Display name cannot be empty.');
+      setErrorMsg(t('win_err_empty_display_name'));
       return;
     }
     if (Number.isNaN(targetNum) || targetNum < 1 || targetNum > 80) {
-      setErrorMsg('Weekly hours target must be between 1 and 80.');
+      setErrorMsg(t('win_err_weekly_target_range'));
       return;
     }
 
@@ -81,7 +84,7 @@ export function ProfileSettingsDialog({
     try {
       await onSavePreferences(
         displayName.trim(),
-        department.trim() || 'Operations',
+        department.trim() || t('default_dept_operations'),
         targetNum,
         pushEnabled,
       );
@@ -93,39 +96,42 @@ export function ProfileSettingsDialog({
     }
   };
 
+  const roleLabel =
+    profile.role === 'manager' ? t('role_manager') : t('role_staff');
+
   return (
     <ModalShell
       open={open}
       onClose={onClose}
-      title="Profile & App Settings"
-      subtitle={`${profile.email} · ${profile.role === 'manager' ? 'Manager' : 'Staff'}`}
+      title={t('profile_settings')}
+      subtitle={t('email_role_format', profile.email, roleLabel)}
       footer={
         <div className="w-full flex flex-wrap items-center justify-between gap-2">
           <button
             type="button"
             onClick={() => onSignOut()}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-rose-700 hover:bg-rose-50 text-xs font-semibold transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-rose-700 hover:bg-rose-50 text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0"
           >
-            <LogOut className="w-3.5 h-3.5" />
-            <span>Sign Out</span>
+            <LogOut className="w-3.5 h-3.5 shrink-0" />
+            <span>{t('sign_out')}</span>
           </button>
 
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer"
+              className="px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer whitespace-nowrap shrink-0"
             >
-              Cancel
+              {t('cancel')}
             </button>
             <button
               type="submit"
               form="profile-settings-form"
               disabled={saving}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-xs font-semibold cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0"
             >
-              <Save className="w-3.5 h-3.5" />
-              <span>{saving ? 'Saving...' : 'Save Changes'}</span>
+              <Save className="w-3.5 h-3.5 shrink-0" />
+              <span>{saving ? t('win_saving') : t('save')}</span>
             </button>
           </div>
         </div>
@@ -145,7 +151,7 @@ export function ProfileSettingsDialog({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Display Name
+              {t('display_name_label')}
             </label>
             <div className="relative">
               <UserIcon className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -162,7 +168,7 @@ export function ProfileSettingsDialog({
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Department
+              {t('department_label')}
             </label>
             <input
               type="text"
@@ -178,7 +184,7 @@ export function ProfileSettingsDialog({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 items-end">
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Weekly Hours Target
+              {t('weekly_hours_target_label')}
             </label>
             <input
               type="number"
@@ -192,8 +198,8 @@ export function ProfileSettingsDialog({
 
           <label className="flex items-center justify-between gap-3 p-2.5 rounded-lg border border-slate-200 bg-slate-50 cursor-pointer">
             <span className="inline-flex items-center gap-2 text-xs font-semibold text-slate-800">
-              <Bell className="w-4 h-4 text-blue-600" />
-              <span>Desktop Notifications</span>
+              <Bell className="w-4 h-4 text-blue-600 shrink-0" />
+              <span>{t('enable_push_alerts')}</span>
             </span>
             <input
               type="checkbox"
@@ -204,26 +210,62 @@ export function ProfileSettingsDialog({
           </label>
         </div>
 
+        <div className="p-3.5 rounded-lg border border-slate-200 bg-slate-50 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <label
+                htmlFor="cadence-lang-select"
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-900"
+              >
+                <Globe className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                <span>{t('language_label')}</span>
+              </label>
+              <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                {t('language_picker_subtitle')}
+              </p>
+            </div>
+          </div>
+
+          <select
+            id="cadence-lang-select"
+            value={preference}
+            onChange={(e) =>
+              void setLanguagePreference(e.target.value as LanguagePreference)
+            }
+            className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-600 cursor-pointer"
+          >
+            {languages.map((opt) => (
+              <option key={opt.code} value={opt.code}>
+                {opt.code === 'system'
+                  ? t(opt.labelKey)
+                  : opt.nativeLabel === t(opt.labelKey)
+                    ? opt.nativeLabel
+                    : `${opt.nativeLabel} — ${t(opt.labelKey)}`}
+              </option>
+            ))}
+          </select>
+        </div>
+
         <div className="p-3.5 rounded-lg border border-slate-200 bg-slate-50 space-y-2.5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <div className="text-xs font-bold text-slate-900">
-                Application Version
+                {t('win_current_win_ver')}
               </div>
               <div className="text-xs text-slate-500 mt-0.5 font-mono-tabular">
                 v{appVersion} ·{' '}
                 {isTauriDesktop()
-                  ? 'Windows Rust Desktop'
-                  : 'Web Workspace Preview'}
+                  ? t('win_windows_rust_desktop')
+                  : t('win_web_workspace_preview')}
               </div>
             </div>
             {updateResult?.updateAvailable ? (
               <StatusChip
-                label={`v${updateResult.latest.versionName} Available`}
+                label={t('win_version_avail_chip', updateResult.latest.versionName)}
                 tone="success"
               />
             ) : (
-              <StatusChip label="Up to date" tone="neutral" />
+              <StatusChip label={t('win_up_to_date')} tone="neutral" />
             )}
           </div>
 
@@ -232,13 +274,15 @@ export function ProfileSettingsDialog({
               type="button"
               disabled={checkingUpdate}
               onClick={() => onCheckForUpdates()}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-300 bg-white hover:bg-slate-100 text-xs font-semibold text-slate-800 cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-300 bg-white hover:bg-slate-100 text-xs font-semibold text-slate-800 cursor-pointer whitespace-nowrap shrink-0"
             >
               <RefreshCw
-                className={`w-3.5 h-3.5 ${checkingUpdate ? 'animate-spin' : ''}`}
+                className={`w-3.5 h-3.5 shrink-0 ${checkingUpdate ? 'animate-spin' : ''}`}
               />
               <span>
-                {checkingUpdate ? 'Checking GitHub...' : 'Check for Updates'}
+                {checkingUpdate
+                  ? t('checking_for_updates')
+                  : t('check_for_updates')}
               </span>
             </button>
             {updateResult?.updateAvailable && (
@@ -248,10 +292,12 @@ export function ProfileSettingsDialog({
                   onClose();
                   onOpenUpdateDialog();
                 }}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0"
               >
-                <Download className="w-3.5 h-3.5" />
-                <span>View Release v{updateResult.latest.versionName}</span>
+                <Download className="w-3.5 h-3.5 shrink-0" />
+                <span>
+                  {t('win_view_release_format', updateResult.latest.versionName)}
+                </span>
               </button>
             )}
           </div>
@@ -272,6 +318,7 @@ export function AppUpdateDialog({
   updateResult,
   onClose,
 }: AppUpdateDialogProps) {
+  const { t } = useI18n();
   if (!updateResult) return null;
   const { currentVersion, latest, updateAvailable } = updateResult;
 
@@ -281,18 +328,18 @@ export function AppUpdateDialog({
       onClose={onClose}
       title={
         updateAvailable
-          ? `Windows Update Available: v${latest.versionName}`
-          : 'Cadence Windows Is Up to Date'
+          ? t('win_update_avail_title_format', latest.versionName)
+          : t('win_update_uptodate_title')
       }
-      subtitle={`Installed Windows v${currentVersion} · Latest Windows release v${latest.versionName}`}
+      subtitle={t('win_update_subtitle_format', currentVersion, latest.versionName)}
       footer={
         <>
           <button
             type="button"
             onClick={onClose}
-            className="px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer"
+            className="px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer whitespace-nowrap shrink-0"
           >
-            Later
+            {t('update_later')}
           </button>
           <button
             type="button"
@@ -301,10 +348,10 @@ export function AppUpdateDialog({
                 latest.downloadPageUrl || GITHUB_RELEASES_PAGE_URL,
               )
             }
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-800 cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-800 cursor-pointer whitespace-nowrap shrink-0"
           >
-            <ExternalLink className="w-3.5 h-3.5" />
-            <span>GitHub Releases</span>
+            <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+            <span>{t('update_open_github')}</span>
           </button>
           {latest.windowsAssetUrl && (
             <button
@@ -314,11 +361,14 @@ export function AppUpdateDialog({
                   openExternalUrl(latest.windowsAssetUrl);
                 }
               }}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0"
             >
-              <Download className="w-3.5 h-3.5" />
+              <Download className="w-3.5 h-3.5 shrink-0" />
               <span>
-                Download {latest.windowsAssetName ?? 'Windows Installer'}
+                {t(
+                  'win_download_installer_format',
+                  latest.windowsAssetName ?? t('win_win_installer'),
+                )}
               </span>
             </button>
           )}
@@ -327,13 +377,13 @@ export function AppUpdateDialog({
     >
       <div className="space-y-3">
         <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs">
-          <span className="text-slate-600">Current Windows Version</span>
+          <span className="text-slate-600">{t('win_current_win_ver')}</span>
           <span className="font-mono-tabular font-semibold text-slate-900">
             v{currentVersion}
           </span>
         </div>
         <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs">
-          <span className="text-slate-600">Latest Windows Release</span>
+          <span className="text-slate-600">{t('win_latest_win_rel')}</span>
           <span className="font-mono-tabular font-semibold text-blue-700">
             v{latest.versionName}
           </span>
@@ -341,10 +391,10 @@ export function AppUpdateDialog({
 
         <div>
           <div className="text-xs font-semibold text-slate-700 mb-1.5">
-            Release Notes
+            {t('win_release_notes')}
           </div>
           <div className="p-3 rounded-lg border border-slate-200 bg-slate-50 text-xs text-slate-700 whitespace-pre-wrap max-h-48 overflow-y-auto leading-relaxed">
-            {latest.releaseNotes || 'Maintenance update and reliability fixes.'}
+            {latest.releaseNotes || t('win_release_notes_fallback')}
           </div>
         </div>
       </div>

@@ -4,6 +4,7 @@ import {
   ExternalLink,
   Eye,
   EyeOff,
+  Globe,
   LogOut,
   MailCheck,
   RefreshCw,
@@ -22,6 +23,7 @@ import {
   signUpWithEmail,
 } from '../services/authService';
 import { isTauriDesktop } from '../utils/tauriBridge';
+import { LanguagePreference, useI18n } from '../i18n/I18nContext';
 
 interface AuthScreenProps {
   pendingUser: User | null;
@@ -29,6 +31,7 @@ interface AuthScreenProps {
 }
 
 export function AuthScreen({ pendingUser, onVerifiedSuccess }: AuthScreenProps) {
+  const { preference, languages, setLanguagePreference, t } = useI18n();
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -56,11 +59,11 @@ export function AuthScreen({ pendingUser, onVerifiedSuccess }: AuthScreenProps) 
 
     if (mode === 'signup') {
       if (!fullName.trim()) {
-        setErrorMsg('Enter your full name.');
+        setErrorMsg(t('auth_err_enter_full_name'));
         return;
       }
       if (password !== confirmPassword) {
-        setErrorMsg('Passwords do not match.');
+        setErrorMsg(t('err_passwords_mismatch'));
         return;
       }
     }
@@ -80,8 +83,8 @@ export function AuthScreen({ pendingUser, onVerifiedSuccess }: AuthScreenProps) 
         );
         setInfoMsg(
           sentVerification
-            ? 'Account created. Please check your inbox and verify your email address.'
-            : 'Account created. Request a verification link below before entering.',
+            ? t('info_verification_sent', email.trim())
+            : t('info_account_created_verify'),
         );
       }
     } catch (err) {
@@ -122,13 +125,13 @@ export function AuthScreen({ pendingUser, onVerifiedSuccess }: AuthScreenProps) 
     setErrorMsg(null);
     setInfoMsg(null);
     if (!email.trim()) {
-      setErrorMsg('Enter your email address above to receive a reset link.');
+      setErrorMsg(t('auth_err_enter_reset_email'));
       return;
     }
     setBusy(true);
     try {
       await sendPasswordReset(email);
-      setInfoMsg(`Password reset link sent to ${email.trim()}.`);
+      setInfoMsg(t('info_reset_link_sent', email.trim()));
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : String(err));
     } finally {
@@ -145,9 +148,7 @@ export function AuthScreen({ pendingUser, onVerifiedSuccess }: AuthScreenProps) 
       if (verified) {
         onVerifiedSuccess();
       } else {
-        setErrorMsg(
-          'Email address is not verified yet. Open the link sent to your inbox, then try again.',
-        );
+        setErrorMsg(t('err_email_not_verified_yet'));
       }
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : String(err));
@@ -162,9 +163,7 @@ export function AuthScreen({ pendingUser, onVerifiedSuccess }: AuthScreenProps) 
     setBusy(true);
     try {
       await resendVerificationEmail();
-      setInfoMsg(
-        `Verification link resent to ${pendingUser?.email ?? 'your email'}.`,
-      );
+      setInfoMsg(t('info_fresh_verification_sent', pendingUser?.email ?? ''));
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : String(err));
     } finally {
@@ -175,19 +174,37 @@ export function AuthScreen({ pendingUser, onVerifiedSuccess }: AuthScreenProps) 
   return (
     <div className="min-h-dvh bg-slate-50 flex flex-col items-center px-4 py-6 sm:p-6 overflow-y-auto cadence-scroll">
       <div className="w-full max-w-md space-y-5 my-auto">
-        <div className="flex items-center gap-3">
-          <img
-            src="/cadence-icon.png"
-            alt="Cadence logo"
-            className="w-11 h-11 rounded-xl border border-slate-200 bg-white object-cover"
-          />
-          <div>
-            <h1 className="text-xl font-bold text-slate-900 leading-tight">
-              Cadence
-            </h1>
-            <p className="text-xs text-slate-500">
-              Verified shift reporting &amp; fairness scheduling
-            </p>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <img
+              src="/cadence-icon.png"
+              alt={t('app_name')}
+              className="w-11 h-11 rounded-xl border border-slate-200 bg-white object-cover shrink-0"
+            />
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold text-slate-900 leading-tight truncate">
+                {t('app_name')}
+              </h1>
+              <p className="text-xs text-slate-500 truncate">{t('tagline')}</p>
+            </div>
+          </div>
+
+          <div className="relative shrink-0">
+            <Globe className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <select
+              aria-label={t('language_label')}
+              value={preference}
+              onChange={(e) =>
+                void setLanguagePreference(e.target.value as LanguagePreference)
+              }
+              className="pl-7 pr-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-600 max-w-[155px]"
+            >
+              {languages.map((opt) => (
+                <option key={opt.code} value={opt.code}>
+                  {opt.code === 'system' ? t(opt.labelKey) : opt.nativeLabel}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 
@@ -199,15 +216,10 @@ export function AuthScreen({ pendingUser, onVerifiedSuccess }: AuthScreenProps) 
               </div>
               <div className="min-w-0">
                 <h2 className="text-base font-bold text-slate-900">
-                  Verify your email to continue
+                  {t('verify_email_title')}
                 </h2>
-                <p className="text-xs text-slate-600 mt-1 break-words">
-                  Signed in as{' '}
-                  <span className="font-semibold text-slate-900">
-                    {pendingUser.email ?? 'your account'}
-                  </span>
-                  . Cadence requires a verified email before syncing team
-                  schedules and shift reports.
+                <p className="text-xs text-slate-600 mt-1 break-words leading-relaxed">
+                  {t('verify_email_sent_body', pendingUser.email ?? '')}
                 </p>
               </div>
             </div>
@@ -228,30 +240,30 @@ export function AuthScreen({ pendingUser, onVerifiedSuccess }: AuthScreenProps) 
                 type="button"
                 disabled={busy}
                 onClick={handleCheckVerified}
-                className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold transition-colors cursor-pointer"
+                className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0"
               >
-                <CheckCircle2 className="w-4 h-4" />
-                <span>I&apos;ve Verified My Email</span>
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                <span>{t('verify_email_check_button')}</span>
               </button>
 
               <button
                 type="button"
                 disabled={busy}
                 onClick={handleResendVerification}
-                className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 disabled:opacity-60 text-slate-800 text-sm font-semibold transition-colors cursor-pointer"
+                className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 disabled:opacity-60 text-slate-800 text-sm font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0"
               >
-                <RefreshCw className="w-4 h-4" />
-                <span>Resend Verification Email</span>
+                <RefreshCw className="w-4 h-4 shrink-0" />
+                <span>{t('verify_email_resend_button')}</span>
               </button>
 
               <button
                 type="button"
                 disabled={busy}
                 onClick={() => signOutUser()}
-                className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 text-xs font-semibold transition-colors cursor-pointer"
+                className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0"
               >
-                <LogOut className="w-3.5 h-3.5" />
-                <span>Use another account</span>
+                <LogOut className="w-3.5 h-3.5 shrink-0" />
+                <span>{t('use_another_account')}</span>
               </button>
             </div>
           </div>
@@ -265,13 +277,13 @@ export function AuthScreen({ pendingUser, onVerifiedSuccess }: AuthScreenProps) 
                   setErrorMsg(null);
                   setInfoMsg(null);
                 }}
-                className={`py-1.5 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+                className={`py-1.5 text-xs font-semibold rounded-md transition-colors cursor-pointer whitespace-nowrap truncate px-2 ${
                   mode === 'signin'
                     ? 'bg-white text-slate-900 shadow-2xs'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                Sign In
+                {t('auth_mode_sign_in')}
               </button>
               <button
                 type="button"
@@ -280,13 +292,13 @@ export function AuthScreen({ pendingUser, onVerifiedSuccess }: AuthScreenProps) 
                   setErrorMsg(null);
                   setInfoMsg(null);
                 }}
-                className={`py-1.5 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+                className={`py-1.5 text-xs font-semibold rounded-md transition-colors cursor-pointer whitespace-nowrap truncate px-2 ${
                   mode === 'signup'
                     ? 'bg-white text-slate-900 shadow-2xs'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                Create Account
+                {t('auth_mode_sign_up')}
               </button>
             </div>
 
@@ -305,13 +317,13 @@ export function AuthScreen({ pendingUser, onVerifiedSuccess }: AuthScreenProps) 
               {mode === 'signup' && (
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Full Name
+                    {t('full_name_label')}
                   </label>
                   <input
                     type="text"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
-                    placeholder="Jordan Taylor"
+                    placeholder={t('win_placeholder_name')}
                     maxLength={80}
                     required
                     className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-600"
@@ -321,30 +333,30 @@ export function AuthScreen({ pendingUser, onVerifiedSuccess }: AuthScreenProps) 
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Email Address
+                  {t('email_address_label')}
                 </label>
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@company.com"
+                  placeholder={t('win_placeholder_email')}
                   required
                   className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-600"
                 />
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center justify-between mb-1 gap-2">
                   <label className="block text-xs font-semibold text-slate-700">
-                    Password
+                    {t('password_label')}
                   </label>
                   {mode === 'signin' && (
                     <button
                       type="button"
                       onClick={handleForgotPassword}
-                      className="text-xs font-semibold text-blue-600 hover:text-blue-700 cursor-pointer"
+                      className="text-xs font-semibold text-blue-600 hover:text-blue-700 cursor-pointer whitespace-nowrap shrink-0"
                     >
-                      Forgot password?
+                      {t('forgot_password')}
                     </button>
                   )}
                 </div>
@@ -353,14 +365,16 @@ export function AuthScreen({ pendingUser, onVerifiedSuccess }: AuthScreenProps) 
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Minimum 6 characters"
+                    placeholder={t('min_6_chars')}
                     required
                     className="w-full px-3 py-2 pr-10 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-600"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword((v) => !v)}
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    aria-label={
+                      showPassword ? t('hide_password') : t('show_password')
+                    }
                     className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
                   >
                     {showPassword ? (
@@ -375,13 +389,13 @@ export function AuthScreen({ pendingUser, onVerifiedSuccess }: AuthScreenProps) 
               {mode === 'signup' && (
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Confirm Password
+                    {t('confirm_password_label')}
                   </label>
                   <input
                     type={showPassword ? 'text' : 'password'}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Re-enter password"
+                    placeholder={t('win_reenter_password')}
                     required
                     className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-600"
                   />
@@ -391,20 +405,20 @@ export function AuthScreen({ pendingUser, onVerifiedSuccess }: AuthScreenProps) 
               <button
                 type="submit"
                 disabled={busy}
-                className="w-full py-2.5 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold transition-colors cursor-pointer"
+                className="w-full py-2.5 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0"
               >
                 {busy
-                  ? 'Please wait...'
+                  ? t('win_please_wait')
                   : mode === 'signin'
-                    ? 'Sign In'
-                    : 'Create Verified Account'}
+                    ? t('sign_in_with_email')
+                    : t('sign_up_with_email')}
               </button>
             </form>
 
             <div className="relative flex items-center justify-center">
               <div className="border-t border-slate-200 w-full" />
               <span className="bg-white px-2.5 text-[11px] font-medium text-slate-400 uppercase tracking-wider shrink-0">
-                or continue with
+                {t('or_continue_with')}
               </span>
               <div className="border-t border-slate-200 w-full" />
             </div>
@@ -415,22 +429,20 @@ export function AuthScreen({ pendingUser, onVerifiedSuccess }: AuthScreenProps) 
                   <ExternalLink className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
                   <div className="min-w-0">
                     <div className="text-xs font-bold text-slate-900">
-                      Browser Sign-In Opened
+                      {t('win_browser_signin_title')}
                     </div>
                     <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">
-                      Finish signing in with Google in your browser, then click{' '}
-                      <span className="font-semibold">Open Cadence</span> if
-                      prompted to return.
+                      {t('win_browser_signin_desc')}
                     </p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={handleCancelExternalGoogle}
-                  className="w-full inline-flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer"
+                  className="w-full inline-flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer whitespace-nowrap shrink-0"
                 >
-                  <X className="w-3.5 h-3.5" />
-                  <span>Cancel Browser Sign-In</span>
+                  <X className="w-3.5 h-3.5 shrink-0" />
+                  <span>{t('win_cancel_browser_signin')}</span>
                 </button>
               </div>
             ) : (
@@ -438,13 +450,13 @@ export function AuthScreen({ pendingUser, onVerifiedSuccess }: AuthScreenProps) 
                 type="button"
                 disabled={busy}
                 onClick={handleGoogleSignIn}
-                className="w-full inline-flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-60 text-slate-800 text-sm font-semibold transition-colors cursor-pointer"
+                className="w-full inline-flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-60 text-slate-800 text-sm font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0"
               >
-                <ShieldCheck className="w-4 h-4 text-blue-600" />
+                <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0" />
                 <span>
                   {isTauriDesktop()
-                    ? 'Google Account (External Browser)'
-                    : 'Google Account'}
+                    ? t('win_google_external')
+                    : t('win_google_account')}
                 </span>
               </button>
             )}

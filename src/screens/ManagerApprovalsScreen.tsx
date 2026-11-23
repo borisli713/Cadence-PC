@@ -9,7 +9,6 @@ import {
 import {
   ApprovalStatus,
   CadenceTab,
-  SCHEDULE_CHANGE_TYPE_LABEL,
   ScheduleChangeRequest,
   UserRole,
   WorkspaceUiData,
@@ -20,6 +19,7 @@ import {
   SurfaceCard,
 } from '../components/UiPrimitives';
 import { formatFirebaseTimestamp } from '../utils/dateFormatting';
+import { useI18n } from '../i18n/I18nContext';
 
 interface ManagerApprovalsScreenProps {
   data: WorkspaceUiData;
@@ -44,6 +44,7 @@ export function ManagerApprovalsScreen({
   onAcceptAllPending,
   onShowFeedback,
 }: ManagerApprovalsScreenProps) {
+  const { t } = useI18n();
   const isManager = data.profile.role === UserRole.MANAGER;
   const [filter, setFilter] = useState<ApprovalFilter>('pending');
   const [notesByReqId, setNotesByReqId] = useState<Record<string, string>>({});
@@ -66,9 +67,7 @@ export function ManagerApprovalsScreen({
     setAcceptingAll(true);
     try {
       const count = await onAcceptAllPending();
-      onShowFeedback(
-        `Approved ${count} pending schedule change${count === 1 ? '' : 's'} with one click.`,
-      );
+      onShowFeedback(t('vm_banner_accept_all_done', count));
     } finally {
       setAcceptingAll(false);
     }
@@ -82,9 +81,9 @@ export function ManagerApprovalsScreen({
     try {
       await onDecideChange(req, decision, notesByReqId[req.id] ?? '');
       onShowFeedback(
-        `${
-          decision === ApprovalStatus.APPROVED ? 'Approved' : 'Denied'
-        } ${req.requesterName}'s request.`,
+        decision === ApprovalStatus.APPROVED
+          ? t('vm_banner_change_approved', req.requesterName)
+          : t('vm_banner_change_denied', req.requesterName),
       );
     } finally {
       setBusyId(null);
@@ -96,10 +95,12 @@ export function ManagerApprovalsScreen({
       <div className="flex flex-col @3xl:flex-row @3xl:items-start @3xl:justify-between gap-3 @xl:gap-4">
         <div className="min-w-0">
           <h1 className="text-xl @xl:text-2xl font-bold text-slate-900">
-            Schedule Change Approvals
+            {isManager ? t('approvals_title_manager') : t('approvals_title_staff')}
           </h1>
           <p className="text-xs @xl:text-sm text-slate-500 mt-1">
-            Review time adjustments, swaps, drops, and open shift claims
+            {isManager
+              ? t('approvals_subtitle_manager')
+              : t('approvals_subtitle_staff')}
           </p>
         </div>
 
@@ -114,8 +115,8 @@ export function ManagerApprovalsScreen({
               <CheckCheck className="w-4 h-4" />
               <span>
                 {acceptingAll
-                  ? 'Accepting...'
-                  : `Accept All (${pendingList.length})`}
+                  ? t('win_accepting')
+                  : t('accept_all_count', pendingList.length)}
               </span>
             </button>
           )}
@@ -126,7 +127,7 @@ export function ManagerApprovalsScreen({
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0"
           >
             <Plus className="w-4 h-4" />
-            <span>New Change Request</span>
+            <span>{t('new_change_request')}</span>
           </button>
 
           <button
@@ -135,7 +136,7 @@ export function ManagerApprovalsScreen({
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-800 cursor-pointer whitespace-nowrap shrink-0"
           >
             <History className="w-4 h-4 text-slate-600" />
-            <span>Shift History</span>
+            <span>{t('nav_history')}</span>
           </button>
         </div>
       </div>
@@ -144,10 +145,10 @@ export function ManagerApprovalsScreen({
       <div className="inline-flex items-center gap-1 max-w-full overflow-x-auto cadence-scroll bg-white border border-slate-200 rounded-lg p-1">
         {(
           [
-            ['pending', `Pending (${pendingList.length})`],
-            ['approved', 'Approved'],
-            ['denied', 'Denied'],
-            ['all', `All (${data.scheduleChanges.length})`],
+            ['pending', t('win_pending_count_format', pendingList.length)],
+            ['approved', t('approval_approved')],
+            ['denied', t('approval_denied')],
+            ['all', t('win_all_count_format', data.scheduleChanges.length)],
           ] as const
         ).map(([key, label]) => (
           <button
@@ -168,8 +169,8 @@ export function ManagerApprovalsScreen({
       {filteredList.length === 0 ? (
         <EmptyStatePanel
           icon={<CheckCircle2 className="w-5 h-5" />}
-          title="No requests in this queue"
-          subtitle="Schedule change requests submitted by staff will appear here for review."
+          title={t('empty_approvals_title')}
+          subtitle={t('empty_approvals_subtitle')}
         />
       ) : (
         <div className="grid grid-cols-1 @5xl:grid-cols-2 gap-4">
@@ -182,15 +183,11 @@ export function ManagerApprovalsScreen({
                       {req.shiftTitle}
                     </h3>
                     <span className="text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md">
-                      {SCHEDULE_CHANGE_TYPE_LABEL[req.type]}
+                      {t(`change_type_${req.type}`)}
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Requested by{' '}
-                    <span className="font-semibold text-slate-800">
-                      {req.requesterName}
-                    </span>{' '}
-                    · {formatFirebaseTimestamp(req.createdAt)}
+                    {t('requested_by_type_format', req.requesterName, formatFirebaseTimestamp(req.createdAt))}
                   </p>
                 </div>
                 <ApprovalStatusChip status={req.status} />
@@ -199,7 +196,7 @@ export function ManagerApprovalsScreen({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs">
                 <div>
                   <div className="text-[11px] font-semibold uppercase text-slate-400">
-                    Current Shift
+                    {t('win_current_shift')}
                   </div>
                   <div className="font-mono-tabular text-slate-800 mt-0.5">
                     {req.currentDate} · {req.currentStartTime}–
@@ -208,13 +205,13 @@ export function ManagerApprovalsScreen({
                 </div>
                 <div>
                   <div className="text-[11px] font-semibold uppercase text-slate-400">
-                    Proposed
+                    {t('win_proposed_col')}
                   </div>
                   <div className="font-mono-tabular font-semibold text-slate-900 mt-0.5">
                     {req.proposedDate} · {req.proposedStartTime}–
                     {req.proposedEndTime}
                     {req.proposedAssigneeName
-                      ? ` · Assignee: ${req.proposedAssigneeName}`
+                      ? ` · ${t('win_assignee_prefix', req.proposedAssigneeName)}`
                       : ''}
                   </div>
                 </div>
@@ -222,8 +219,7 @@ export function ManagerApprovalsScreen({
 
               {req.reason && (
                 <p className="text-xs text-slate-700 leading-relaxed">
-                  <span className="font-semibold text-slate-900">Reason: </span>
-                  {req.reason}
+                  {t('reason_line_format', req.reason)}
                 </p>
               )}
 
@@ -238,7 +234,7 @@ export function ManagerApprovalsScreen({
                         [req.id]: e.target.value,
                       }))
                     }
-                    placeholder="Optional review note..."
+                    placeholder={t('optional_review_note')}
                     maxLength={300}
                     className="w-full @lg:flex-1 @lg:min-w-48 px-3 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-900"
                   />
@@ -246,29 +242,27 @@ export function ManagerApprovalsScreen({
                     type="button"
                     disabled={busyId === req.id}
                     onClick={() => handleDecision(req, ApprovalStatus.APPROVED)}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-xs font-semibold cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0"
                   >
                     <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>Approve</span>
+                    <span>{t('btn_approve')}</span>
                   </button>
                   <button
                     type="button"
                     disabled={busyId === req.id}
                     onClick={() => handleDecision(req, ApprovalStatus.DENIED)}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 disabled:opacity-60 text-rose-700 text-xs font-semibold cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 disabled:opacity-60 text-rose-700 text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0"
                   >
                     <XCircle className="w-3.5 h-3.5" />
-                    <span>Deny</span>
+                    <span>{t('btn_deny')}</span>
                   </button>
                 </div>
               ) : (
                 req.reviewedByName && (
                   <div className="text-xs text-slate-500 pt-2 border-t border-slate-100">
-                    Reviewed by{' '}
-                    <span className="font-semibold text-slate-700">
-                      {req.reviewedByName}
-                    </span>
-                    {req.reviewNote ? ` · "${req.reviewNote}"` : ''}
+                    {req.reviewNote
+                      ? t('reviewed_by_note_format', req.reviewedByName, req.reviewNote)
+                      : t('reviewed_by_format', req.reviewedByName)}
                   </div>
                 )
               )}

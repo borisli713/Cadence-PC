@@ -12,6 +12,7 @@ import {
   SurfaceCard,
 } from '../components/UiPrimitives';
 import { formatFirebaseTimestamp } from '../utils/dateFormatting';
+import { useI18n } from '../i18n/I18nContext';
 
 interface NotificationsScreenProps {
   data: WorkspaceUiData;
@@ -28,6 +29,7 @@ export function NotificationsScreen({
   onSendTestAlert,
   onShowFeedback,
 }: NotificationsScreenProps) {
+  const { t } = useI18n();
   const [permState, setPermState] = useState(getNotificationPermissionState);
   const [sendingTest, setSendingTest] = useState(false);
 
@@ -38,8 +40,8 @@ export function NotificationsScreen({
     setPermState(getNotificationPermissionState());
     onShowFeedback(
       granted
-        ? 'Desktop alert permissions granted.'
-        : 'Notifications blocked by browser/OS settings.',
+        ? t('device_notifications_enabled_banner')
+        : t('win_perm_blocked_notice'),
     );
   };
 
@@ -47,7 +49,7 @@ export function NotificationsScreen({
     setSendingTest(true);
     try {
       await onSendTestAlert();
-      onShowFeedback('Dispatched test alert through Firestore & desktop notifications.');
+      onShowFeedback(t('vm_banner_test_alert_sent'));
     } finally {
       setSendingTest(false);
     }
@@ -57,9 +59,11 @@ export function NotificationsScreen({
     <div className="space-y-5 @xl:space-y-6">
       <div className="flex flex-col @3xl:flex-row @3xl:items-start @3xl:justify-between gap-3 @xl:gap-4">
         <div className="min-w-0">
-          <h1 className="text-xl @xl:text-2xl font-bold text-slate-900">Notifications</h1>
+          <h1 className="text-xl @xl:text-2xl font-bold text-slate-900">
+            {t('notifications_title')}
+          </h1>
           <p className="text-xs @xl:text-sm text-slate-500 mt-1">
-            Schedule decisions, fairness assignments, report verifications, and native Windows alerts
+            {t('notifications_subtitle')}
           </p>
         </div>
 
@@ -71,7 +75,7 @@ export function NotificationsScreen({
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-60 text-xs font-semibold text-slate-800 cursor-pointer whitespace-nowrap shrink-0"
           >
             <Send className="w-3.5 h-3.5 text-blue-600" />
-            <span>{sendingTest ? 'Sending...' : 'Test Alert'}</span>
+            <span>{sendingTest ? t('win_sending') : t('btn_test_alert')}</span>
           </button>
 
           {unreadCount > 0 && (
@@ -79,12 +83,12 @@ export function NotificationsScreen({
               type="button"
               onClick={async () => {
                 await onMarkAllRead();
-                onShowFeedback('Marked all notifications as read.');
+                onShowFeedback(t('vm_banner_all_read'));
               }}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0"
             >
               <CheckCheck className="w-3.5 h-3.5" />
-              <span>Mark All Read ({unreadCount})</span>
+              <span>{t('btn_mark_all_read_count', unreadCount)}</span>
             </button>
           )}
         </div>
@@ -98,18 +102,18 @@ export function NotificationsScreen({
           </div>
           <div className="min-w-0">
             <div className="text-xs font-bold text-slate-900">
-              Desktop Toast Notifications
+              {t('win_desktop_toast_title')}
             </div>
             <div className="text-xs text-slate-500 mt-0.5">
-              Status:{' '}
+              {t('win_status_label')}:{' '}
               <span className="font-semibold text-slate-800">
                 {permState === 'tauri'
-                  ? 'Native Windows Desktop Enabled'
+                  ? t('win_status_native_windows')
                   : permState === 'granted'
-                    ? 'Enabled'
+                    ? t('win_status_enabled')
                     : permState === 'denied'
-                      ? 'Blocked in OS/Browser'
-                      : 'Permission Required'}
+                      ? t('win_status_blocked')
+                      : t('win_status_perm_required')}
               </span>
             </div>
           </div>
@@ -121,7 +125,7 @@ export function NotificationsScreen({
             onClick={handleEnableAlerts}
             className="px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0"
           >
-            Enable Alerts
+            {t('btn_enable_device_alerts')}
           </button>
         )}
       </SurfaceCard>
@@ -129,8 +133,8 @@ export function NotificationsScreen({
       {data.notifications.length === 0 ? (
         <EmptyStatePanel
           icon={<Bell className="w-5 h-5" />}
-          title="You're all caught up"
-          subtitle="Notifications for shift assignments, approvals, reports, and time off will appear here."
+          title={t('empty_notifications_title')}
+          subtitle={t('empty_notifications_subtitle')}
         />
       ) : (
         <div className="grid grid-cols-1 @5xl:grid-cols-2 gap-3.5">
@@ -148,7 +152,9 @@ export function NotificationsScreen({
                       {notif.title}
                     </h3>
                     <NotificationCategoryChip category={notif.category} />
-                    {!notif.isRead && <StatusChip label="Unread" tone="info" />}
+                    {!notif.isRead && (
+                      <StatusChip label={t('badge_unread')} tone="info" />
+                    )}
                   </div>
                   <p className="text-xs text-slate-700 leading-relaxed">
                     {notif.message}
@@ -161,10 +167,12 @@ export function NotificationsScreen({
                 <button
                   type="button"
                   onClick={() => onMarkRead(notif.id, !notif.isRead)}
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer shrink-0"
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer whitespace-nowrap shrink-0"
                 >
                   <Check className="w-3.5 h-3.5" />
-                  <span>{notif.isRead ? 'Mark Unread' : 'Mark Read'}</span>
+                  <span>
+                    {notif.isRead ? t('btn_mark_unread') : t('btn_mark_read')}
+                  </span>
                 </button>
               </div>
             </SurfaceCard>

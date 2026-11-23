@@ -20,6 +20,7 @@ import {
   ModalShell,
   SurfaceCard,
 } from '../components/UiPrimitives';
+import { useI18n } from '../i18n/I18nContext';
 
 interface TimeOffRequestsScreenProps {
   data: WorkspaceUiData;
@@ -54,6 +55,7 @@ export function TimeOffRequestsScreen({
   onDecideRequest,
   onShowFeedback,
 }: TimeOffRequestsScreenProps) {
+  const { t } = useI18n();
   const isManager = data.profile.role === UserRole.MANAGER;
   const [filter, setFilter] = useState<TimeOffFilter>('pending');
   const [modalOpen, setModalOpen] = useState(false);
@@ -69,28 +71,28 @@ export function TimeOffRequestsScreen({
 
   const pendingCount = useMemo(
     () =>
-      data.timeOffRequests.filter((t) => t.status === ApprovalStatus.PENDING)
+      data.timeOffRequests.filter((req) => req.status === ApprovalStatus.PENDING)
         .length,
     [data.timeOffRequests],
   );
 
   const filteredRequests = useMemo(() => {
     if (filter === 'all') return data.timeOffRequests;
-    return data.timeOffRequests.filter((t) => t.status === filter);
+    return data.timeOffRequests.filter((req) => req.status === filter);
   }, [data.timeOffRequests, filter]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!DATE_PATTERN.test(startDate) || !DATE_PATTERN.test(endDate)) {
-      setErrorMsg('Enter valid YYYY-MM-DD dates.');
+      setErrorMsg(t('win_err_enter_date_format'));
       return;
     }
     if (endDate < startDate) {
-      setErrorMsg('End date must be on or after start date.');
+      setErrorMsg(t('win_err_end_before_start'));
       return;
     }
     if (!reason.trim()) {
-      setErrorMsg('Please enter a reason for time off.');
+      setErrorMsg(t('win_err_enter_time_off_reason'));
       return;
     }
 
@@ -100,7 +102,7 @@ export function TimeOffRequestsScreen({
       await onCreateRequest(startDate, endDate, reason.trim());
       setModalOpen(false);
       setReason('');
-      onShowFeedback('Time off request submitted.');
+      onShowFeedback(t('vm_banner_time_off_submitted'));
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : String(err));
     } finally {
@@ -108,15 +110,17 @@ export function TimeOffRequestsScreen({
     }
   };
 
+  const durationDays = countDaysInclusive(startDate, endDate);
+
   return (
     <div className="space-y-5 @xl:space-y-6">
       <div className="flex flex-col @3xl:flex-row @3xl:items-start @3xl:justify-between gap-3 @xl:gap-4">
         <div className="min-w-0">
           <h1 className="text-xl @xl:text-2xl font-bold text-slate-900">
-            Time Off Requests
+            {t('time_off_title')}
           </h1>
           <p className="text-xs @xl:text-sm text-slate-500 mt-1">
-            Approved dates automatically protect staff from fairness shift assignments
+            {t('time_off_subtitle')}
           </p>
         </div>
 
@@ -132,17 +136,17 @@ export function TimeOffRequestsScreen({
           className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0 self-start"
         >
           <Plus className="w-4 h-4" />
-          <span>Request Time Off</span>
+          <span>{t('btn_request')}</span>
         </button>
       </div>
 
       <div className="inline-flex items-center gap-1 max-w-full overflow-x-auto cadence-scroll bg-white border border-slate-200 rounded-lg p-1">
         {(
           [
-            ['pending', `Pending (${pendingCount})`],
-            ['approved', 'Approved'],
-            ['denied', 'Denied'],
-            ['all', `All (${data.timeOffRequests.length})`],
+            ['pending', t('win_pending_count_format', pendingCount)],
+            ['approved', t('approval_approved')],
+            ['denied', t('approval_denied')],
+            ['all', t('win_all_count_format', data.timeOffRequests.length)],
           ] as const
         ).map(([key, label]) => (
           <button
@@ -163,8 +167,8 @@ export function TimeOffRequestsScreen({
       {filteredRequests.length === 0 ? (
         <EmptyStatePanel
           icon={<CalendarOff className="w-5 h-5" />}
-          title="No time off requests here"
-          subtitle="Submit a new time off request when you need protected dates."
+          title={t('empty_time_off_title')}
+          subtitle={t('empty_time_off_subtitle')}
         />
       ) : (
         <div className="grid grid-cols-1 @5xl:grid-cols-2 gap-3.5">
@@ -183,8 +187,19 @@ export function TimeOffRequestsScreen({
                       </span>
                     </h3>
                     <div className="text-xs font-mono-tabular text-slate-600 mt-0.5">
-                      {req.startDate} → {req.endDate} ({days}{' '}
-                      {days === 1 ? 'day' : 'days'})
+                      {days === 1
+                        ? t(
+                            'time_off_dates_singular_format',
+                            req.startDate,
+                            req.endDate,
+                            days,
+                          )
+                        : t(
+                            'time_off_dates_plural_format',
+                            req.startDate,
+                            req.endDate,
+                            days,
+                          )}
                     </div>
                   </div>
                   <ApprovalStatusChip status={req.status} />
@@ -206,7 +221,7 @@ export function TimeOffRequestsScreen({
                             [req.id]: e.target.value,
                           }))
                         }
-                        placeholder="Optional review note..."
+                        placeholder={t('optional_review_note')}
                         maxLength={300}
                         className="w-full @lg:flex-1 @lg:min-w-44 px-3 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-900"
                       />
@@ -222,16 +237,16 @@ export function TimeOffRequestsScreen({
                               reviewNotes[req.id] ?? '',
                             );
                             onShowFeedback(
-                              `Approved time off for ${req.staffName}.`,
+                              t('vm_banner_time_off_approved', req.staffName),
                             );
                           } finally {
                             setBusyId(null);
                           }
                         }}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0"
                       >
                         <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>Approve</span>
+                        <span>{t('btn_approve')}</span>
                       </button>
                       <button
                         type="button"
@@ -245,25 +260,29 @@ export function TimeOffRequestsScreen({
                               reviewNotes[req.id] ?? '',
                             );
                             onShowFeedback(
-                              `Denied time off for ${req.staffName}.`,
+                              t('vm_banner_time_off_denied', req.staffName),
                             );
                           } finally {
                             setBusyId(null);
                           }
                         }}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0"
                       >
                         <XCircle className="w-3.5 h-3.5" />
-                        <span>Deny</span>
+                        <span>{t('btn_deny')}</span>
                       </button>
                     </div>
                   ) : (
                     <div className="text-xs text-slate-500">
                       {req.reviewedByName
-                        ? `Reviewed by ${req.reviewedByName}${
-                            req.reviewNote ? ` · "${req.reviewNote}"` : ''
-                          }`
-                        : 'Awaiting manager decision'}
+                        ? req.reviewNote
+                          ? t(
+                              'reviewed_by_note_format',
+                              req.reviewedByName,
+                              req.reviewNote,
+                            )
+                          : t('reviewed_by_format', req.reviewedByName)
+                        : t('win_awaiting_decision')}
                     </div>
                   )}
 
@@ -272,12 +291,12 @@ export function TimeOffRequestsScreen({
                       type="button"
                       onClick={async () => {
                         await onWithdrawRequest(req.id);
-                        onShowFeedback('Time off request withdrawn.');
+                        onShowFeedback(t('vm_banner_time_off_withdrawn'));
                       }}
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-rose-700 hover:underline cursor-pointer"
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-rose-700 hover:underline cursor-pointer whitespace-nowrap shrink-0"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
-                      <span>Withdraw</span>
+                      <span>{t('btn_withdraw_request')}</span>
                     </button>
                   )}
                 </div>
@@ -291,24 +310,24 @@ export function TimeOffRequestsScreen({
       <ModalShell
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        title="Request Time Off"
-        subtitle="Select your start and end dates and provide context for manager approval"
+        title={t('dialog_request_time_off')}
+        subtitle={t('time_off_subtitle')}
         footer={
           <>
             <button
               type="button"
               onClick={() => setModalOpen(false)}
-              className="px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer"
+              className="px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer whitespace-nowrap shrink-0"
             >
-              Cancel
+              {t('cancel')}
             </button>
             <button
               type="submit"
               form="time-off-form"
               disabled={saving}
-              className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-xs font-semibold cursor-pointer"
+              className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0"
             >
-              {saving ? 'Submitting...' : 'Submit Request'}
+              {saving ? t('win_submitting') : t('submit_request')}
             </button>
           </>
         }
@@ -323,7 +342,7 @@ export function TimeOffRequestsScreen({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Start Date
+                {t('start_date_iso')}
               </label>
               <input
                 type="date"
@@ -335,7 +354,7 @@ export function TimeOffRequestsScreen({
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                End Date
+                {t('end_date_iso')}
               </label>
               <input
                 type="date"
@@ -348,12 +367,16 @@ export function TimeOffRequestsScreen({
           </div>
 
           <div className="text-xs text-slate-500 font-mono-tabular">
-            Total duration: {countDaysInclusive(startDate, endDate)} day(s)
+            {t(
+              'win_total_duration_format',
+              durationDays,
+              durationDays === 1 ? t('win_day_singular') : t('win_day_plural'),
+            )}
           </div>
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Reason
+              {t('reason_label')}
             </label>
             <textarea
               value={reason}
@@ -361,7 +384,7 @@ export function TimeOffRequestsScreen({
               maxLength={400}
               rows={3}
               required
-              placeholder="Medical appointment, personal travel, family event..."
+              placeholder={t('win_time_off_placeholder')}
               className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm text-slate-900"
             />
           </div>

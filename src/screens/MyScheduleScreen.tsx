@@ -17,6 +17,7 @@ import {
   WorkspaceUiData,
 } from '../types/cadence';
 import { exportIcsFile, openGoogleCalendarForShift } from '../utils/calendarExport';
+import { useI18n } from '../i18n/I18nContext';
 import {
   EmptyStatePanel,
   KpiTile,
@@ -45,6 +46,7 @@ export function MyScheduleScreen({
   onLogReportForShift,
   onShowFeedback,
 }: MyScheduleScreenProps) {
+  const { t } = useI18n();
   const [filter, setFilter] = useState<MyFilter>('upcoming');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -100,12 +102,12 @@ export function MyScheduleScreen({
 
   const handleExportMyIcs = async () => {
     if (myShifts.length === 0) {
-      onShowFeedback('No assigned shifts available to export.');
+      onShowFeedback(t('win_no_shifts_export'));
       return;
     }
     const saved = await exportIcsFile(myShifts, 'my-cadence-shifts.ics');
     if (saved) {
-      onShowFeedback(`Exported ${myShifts.length} shifts to ${saved}`);
+      onShowFeedback(t('win_exported_shifts_format', myShifts.length, saved));
     }
   };
 
@@ -114,22 +116,24 @@ export function MyScheduleScreen({
       <div className="flex flex-col @3xl:flex-row @3xl:items-start @3xl:justify-between gap-3 @xl:gap-4">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-xl @xl:text-2xl font-bold text-slate-900">My Schedule</h1>
-            <StatusChip label="Live Sync" tone="success" />
+            <h1 className="text-xl @xl:text-2xl font-bold text-slate-900">
+              {t('my_schedule_title')}
+            </h1>
+            <StatusChip label={t('live_sync')} tone="success" />
           </div>
           <p className="text-xs @xl:text-sm text-slate-500 mt-1">
-            Personal assigned shifts, Google Calendar export, and change requests
+            {t('win_my_schedule_subtitle')}
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
           <button
             type="button"
             onClick={handleExportMyIcs}
             className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-800 cursor-pointer whitespace-nowrap shrink-0"
           >
-            <Download className="w-4 h-4 text-slate-600" />
-            <span>Export My .ics</span>
+            <Download className="w-4 h-4 text-slate-600 shrink-0" />
+            <span>{t('export_my_ics')}</span>
           </button>
 
           <button
@@ -137,8 +141,8 @@ export function MyScheduleScreen({
             onClick={() => onNavigate(CadenceTab.SCHEDULE)}
             className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0"
           >
-            <Calendar className="w-4 h-4" />
-            <span>Full Team Schedule</span>
+            <Calendar className="w-4 h-4 shrink-0" />
+            <span>{t('full_team_schedule')}</span>
           </button>
         </div>
       </div>
@@ -149,7 +153,7 @@ export function MyScheduleScreen({
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold uppercase tracking-wider text-blue-700">
-                Next Upcoming Shift
+                {t('next_upcoming_shift')}
               </span>
               <StatusChip
                 label={formatRelativeDayBadge(nextUpcomingShift.date)}
@@ -160,7 +164,7 @@ export function MyScheduleScreen({
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
+            <div className="min-w-0">
               <h2 className="text-lg font-bold text-slate-900">
                 {nextUpcomingShift.title}
               </h2>
@@ -171,22 +175,22 @@ export function MyScheduleScreen({
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
               <button
                 type="button"
                 onClick={() => openGoogleCalendarForShift(nextUpcomingShift)}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-800 cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-800 cursor-pointer whitespace-nowrap shrink-0"
               >
-                <CalendarPlus className="w-3.5 h-3.5 text-blue-600" />
-                <span>Add to Google Calendar</span>
+                <CalendarPlus className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                <span>{t('btn_add_to_google_calendar')}</span>
               </button>
               <button
                 type="button"
                 onClick={() => onRequestChange(nextUpcomingShift)}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0"
               >
-                <CalendarClock className="w-3.5 h-3.5" />
-                <span>Request Change</span>
+                <CalendarClock className="w-3.5 h-3.5 shrink-0" />
+                <span>{t('btn_request_change')}</span>
               </button>
             </div>
           </div>
@@ -196,16 +200,16 @@ export function MyScheduleScreen({
       {/* KPI Summary */}
       <div className="grid grid-cols-1 @sm:grid-cols-2 gap-3 @xl:gap-4">
         <KpiTile
-          label="Upcoming Shifts"
+          label={t('kpi_upcoming_shifts')}
           value={upcomingShifts.length}
-          subtext={`${myShifts.length} total assigned to you`}
+          subtext={t('win_total_assigned_format', myShifts.length)}
           accentClass="text-blue-700"
           icon={<Calendar className="w-4 h-4" />}
         />
         <KpiTile
-          label="Scheduled Upcoming Hours"
-          value={`${formatHours(totalScheduledHours)}h`}
-          subtext={`Target ${data.profile.weeklyHoursTarget}h/week`}
+          label={t('win_scheduled_upcoming_hours')}
+          value={t('kpi_hours_value_format', formatHours(totalScheduledHours))}
+          subtext={t('win_target_week_format', data.profile.weeklyHoursTarget)}
           accentClass="text-emerald-700"
           icon={<CheckCircle2 className="w-4 h-4" />}
         />
@@ -216,10 +220,10 @@ export function MyScheduleScreen({
         <div className="inline-flex items-center gap-1 max-w-full overflow-x-auto cadence-scroll bg-white border border-slate-200 rounded-lg p-1">
           {(
             [
-              ['upcoming', 'Upcoming'],
-              ['all', 'All Assigned'],
-              ['pending_change', 'Pending Change'],
-              ['completed', 'Completed'],
+              ['upcoming', t('filter_upcoming')],
+              ['all', t('filter_all_assigned')],
+              ['pending_change', t('status_pending_change')],
+              ['completed', t('status_completed')],
             ] as const
           ).map(([key, label]) => (
             <button
@@ -243,7 +247,7 @@ export function MyScheduleScreen({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Filter title, department, date..."
+            placeholder={t('search_my_shifts_label')}
             className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-300 bg-white text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-600"
           />
         </div>
@@ -253,8 +257,8 @@ export function MyScheduleScreen({
       {filteredShifts.length === 0 ? (
         <EmptyStatePanel
           icon={<Calendar className="w-5 h-5" />}
-          title="No matching assigned shifts"
-          subtitle="Adjust your filter or explore open team shifts in Schedule & Fairness."
+          title={t('empty_my_schedule_filtered_title')}
+          subtitle={t('empty_my_schedule_filtered_subtitle')}
         />
       ) : (
         <div className="grid grid-cols-1 @2xl:grid-cols-2 @6xl:grid-cols-3 gap-4">
@@ -299,36 +303,36 @@ export function MyScheduleScreen({
                 <button
                   type="button"
                   onClick={() => openGoogleCalendarForShift(shift)}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer whitespace-nowrap shrink-0"
                 >
-                  <CalendarPlus className="w-3.5 h-3.5 text-blue-600" />
-                  <span>Calendar</span>
+                  <CalendarPlus className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  <span>{t('btn_calendar')}</span>
                 </button>
                 {shift.status !== ShiftStatus.COMPLETED && (
                   <button
                     type="button"
                     onClick={() => onRequestChange(shift)}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer whitespace-nowrap shrink-0"
                   >
-                    <CalendarClock className="w-3.5 h-3.5 text-amber-600" />
-                    <span>Request Change</span>
+                    <CalendarClock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                    <span>{t('btn_request_change')}</span>
                   </button>
                 )}
                 <button
                   type="button"
                   onClick={() => onLogReportForShift(shift)}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer whitespace-nowrap shrink-0"
                 >
-                  <ClipboardCheck className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Log Report</span>
+                  <ClipboardCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>{t('btn_log_report')}</span>
                 </button>
                 {data.profile.role === UserRole.MANAGER && (
                   <button
                     type="button"
                     onClick={() => onInspectShift(shift)}
-                    className="ml-auto text-xs font-semibold text-blue-600 hover:underline cursor-pointer"
+                    className="ml-auto text-xs font-semibold text-blue-600 hover:underline cursor-pointer whitespace-nowrap shrink-0"
                   >
-                    Details
+                    {t('win_details')}
                   </button>
                 )}
               </div>

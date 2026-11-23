@@ -65,7 +65,7 @@ async function tryInvoke<T>(
 }
 
 export async function getDesktopAppVersion(): Promise<string> {
-  return (await tryInvoke<string>('get_app_version')) ?? '1.0.0';
+  return (await tryInvoke<string>('get_app_version')) ?? '1.1.0';
 }
 
 export async function invokeStartExternalGoogleLogin(): Promise<ExternalOAuthResult> {
@@ -844,3 +844,38 @@ export async function openExternalUrl(url: string): Promise<void> {
   anchor.click();
   document.body.removeChild(anchor);
 }
+
+export interface RustLanguageOption {
+  code: string;
+  nativeLabel: string;
+  labelKey: string;
+  bcp47Tag: string;
+}
+
+export interface RustI18nBundlePayload {
+  preference: string;
+  resolvedLanguage: string;
+  bcp47Tag: string;
+  strings: Record<string, string>;
+  fallbackStrings: Record<string, string>;
+  supportedLanguages: RustLanguageOption[];
+}
+
+export const invokeGetI18nBundle = (
+  preference?: string,
+  clientHint?: string,
+) =>
+  tryInvoke<RustI18nBundlePayload>('get_i18n_bundle_cmd', {
+    preference: preference ?? null,
+    clientHint: clientHint ?? null,
+  });
+
+export const invokeSaveLanguagePreference = (
+  language: string,
+  clientHint?: string,
+) =>
+  tryInvoke<RustI18nBundlePayload>('save_language_preference_cmd', {
+    language,
+    clientHint: clientHint ?? null,
+  });
+

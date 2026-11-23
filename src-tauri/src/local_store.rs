@@ -23,6 +23,8 @@ struct PersistedDesktopState {
     seen_notification_ids: HashMap<String, Vec<String>>,
     #[serde(default)]
     seen_manager_work_keys: HashMap<String, Vec<String>>,
+    #[serde(default)]
+    language_preference: Option<String>,
 }
 
 #[derive(Default)]
@@ -66,9 +68,28 @@ impl LocalStoreState {
             if guard.week_slots.is_empty()
                 && guard.seen_notification_ids.is_empty()
                 && guard.seen_manager_work_keys.is_empty()
+                && guard.language_preference.is_none()
                 && p.exists()
             {
                 *guard = load_state_from_path(p);
+            }
+        }
+    }
+
+    pub fn load_language_preference(&self, store_file: Option<&Path>) -> Option<String> {
+        self.hydrate_from_disk_if_empty(store_file);
+        if let Ok(guard) = self.inner.lock() {
+            return guard.language_preference.clone();
+        }
+        None
+    }
+
+    pub fn save_language_preference(&self, store_file: Option<&Path>, language: &str) {
+        self.hydrate_from_disk_if_empty(store_file);
+        if let Ok(mut guard) = self.inner.lock() {
+            guard.language_preference = Some(language.to_string());
+            if let Some(p) = store_file {
+                save_state_to_path(p, &guard);
             }
         }
     }
@@ -177,7 +198,7 @@ impl LocalStoreState {
     }
 }
 
-fn resolve_store_file(app: &AppHandle) -> Option<PathBuf> {
+pub(crate) fn resolve_store_file(app: &AppHandle) -> Option<PathBuf> {
     app.path()
         .app_data_dir()
         .ok()

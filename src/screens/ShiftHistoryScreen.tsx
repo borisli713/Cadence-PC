@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, History, Search, XCircle } from 'lucide-react';
 import {
   ApprovalStatus,
-  SCHEDULE_CHANGE_TYPE_LABEL,
   ScheduleChangeRequest,
+  UserRole,
   WorkspaceUiData,
 } from '../types/cadence';
 import { invokeFilterShiftHistory } from '../utils/tauriBridge';
@@ -14,6 +14,7 @@ import {
   SurfaceCard,
 } from '../components/UiPrimitives';
 import { formatFirebaseTimestamp } from '../utils/dateFormatting';
+import { useI18n } from '../i18n/I18nContext';
 
 interface ShiftHistoryScreenProps {
   data: WorkspaceUiData;
@@ -22,6 +23,8 @@ interface ShiftHistoryScreenProps {
 type HistoryFilter = 'all' | 'approved' | 'rejected';
 
 export function ShiftHistoryScreen({ data }: ShiftHistoryScreenProps) {
+  const { t } = useI18n();
+  const isManager = data.profile.role === UserRole.MANAGER;
   const [filter, setFilter] = useState<HistoryFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [rustHistory, setRustHistory] = useState<{
@@ -81,27 +84,31 @@ export function ShiftHistoryScreen({ data }: ShiftHistoryScreenProps) {
     });
   }, [rustHistory, resolvedRequests, filter, searchQuery]);
 
+  const hasActiveFilter = filter !== 'all' || searchQuery.trim().length > 0;
+
   return (
     <div className="space-y-5 @xl:space-y-6">
       <div>
-        <h1 className="text-xl @xl:text-2xl font-bold text-slate-900">Shift History</h1>
+        <h1 className="text-xl @xl:text-2xl font-bold text-slate-900">
+          {t('nav_history')}
+        </h1>
         <p className="text-xs @xl:text-sm text-slate-500 mt-1">
-          Audit archive of approved and rejected schedule changes, timestamps, and reviewer notes
+          {isManager ? t('history_subtitle_manager') : t('history_subtitle_staff')}
         </p>
       </div>
 
       <div className="grid grid-cols-1 @sm:grid-cols-2 gap-3 @xl:gap-4">
         <KpiTile
-          label="Approved Changes"
+          label={t('kpi_approved_requests')}
           value={approvedCount}
-          subtext="Applied to live team schedule"
+          subtext={t('applied_to_schedule')}
           accentClass="text-emerald-700"
           icon={<CheckCircle2 className="w-4 h-4" />}
         />
         <KpiTile
-          label="Rejected Changes"
+          label={t('kpi_rejected_requests')}
           value={rejectedCount}
-          subtext="Declined with audit trail"
+          subtext={t('declined_by_manager')}
           accentClass="text-rose-700"
           icon={<XCircle className="w-4 h-4" />}
         />
@@ -111,9 +118,9 @@ export function ShiftHistoryScreen({ data }: ShiftHistoryScreenProps) {
         <div className="inline-flex items-center gap-1 max-w-full overflow-x-auto cadence-scroll bg-white border border-slate-200 rounded-lg p-1">
           {(
             [
-              ['all', `All (${totalResolvedCount})`],
-              ['approved', `Approved (${approvedCount})`],
-              ['rejected', `Rejected (${rejectedCount})`],
+              ['all', t('win_all_count_format', totalResolvedCount)],
+              ['approved', t('win_approved_count_format', approvedCount)],
+              ['rejected', t('win_rejected_count_format', rejectedCount)],
             ] as const
           ).map(([key, label]) => (
             <button
@@ -137,7 +144,7 @@ export function ShiftHistoryScreen({ data }: ShiftHistoryScreenProps) {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search shift, staff, reviewer..."
+            placeholder={t('search_history_label')}
             className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-300 bg-white text-xs text-slate-900"
           />
         </div>
@@ -146,8 +153,16 @@ export function ShiftHistoryScreen({ data }: ShiftHistoryScreenProps) {
       {filteredList.length === 0 ? (
         <EmptyStatePanel
           icon={<History className="w-5 h-5" />}
-          title="No resolved schedule changes yet"
-          subtitle="Once managers approve or deny pending change requests, the full audit log appears here."
+          title={
+            hasActiveFilter
+              ? t('empty_history_filtered_title')
+              : t('empty_history_none_title')
+          }
+          subtitle={
+            hasActiveFilter
+              ? t('empty_history_filtered_subtitle')
+              : t('empty_history_none_subtitle')
+          }
         />
       ) : (
         <div className="grid grid-cols-1 @5xl:grid-cols-2 gap-3.5">
@@ -160,13 +175,20 @@ export function ShiftHistoryScreen({ data }: ShiftHistoryScreenProps) {
                       {item.shiftTitle}
                     </h3>
                     <span className="text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md">
-                      {SCHEDULE_CHANGE_TYPE_LABEL[item.type]}
+                      {t(`change_type_${item.type}`)}
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Requester: <span className="font-semibold text-slate-800">{item.requesterName}</span> ·
-                    Submitted {formatFirebaseTimestamp(item.createdAt)} ·
-                    Resolved {formatFirebaseTimestamp(item.updatedAt)}
+                    {t('requested_by_format', item.requesterName)} ·{' '}
+                    {t(
+                      'submitted_time_format',
+                      formatFirebaseTimestamp(item.createdAt),
+                    )}{' '}
+                    ·{' '}
+                    {t(
+                      'win_resolved_label',
+                      formatFirebaseTimestamp(item.updatedAt),
+                    )}
                   </p>
                 </div>
                 <ApprovalStatusChip status={item.status} />
@@ -175,7 +197,7 @@ export function ShiftHistoryScreen({ data }: ShiftHistoryScreenProps) {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs">
                 <div>
                   <div className="text-[11px] font-semibold uppercase text-slate-400">
-                    Original Slot
+                    {t('win_original_slot')}
                   </div>
                   <div className="font-mono-tabular text-slate-700 mt-0.5">
                     {item.currentDate} · {item.currentStartTime}–
@@ -184,7 +206,7 @@ export function ShiftHistoryScreen({ data }: ShiftHistoryScreenProps) {
                 </div>
                 <div>
                   <div className="text-[11px] font-semibold uppercase text-slate-400">
-                    Requested Slot
+                    {t('win_requested_slot')}
                   </div>
                   <div className="font-mono-tabular font-semibold text-slate-900 mt-0.5">
                     {item.proposedDate} · {item.proposedStartTime}–
@@ -197,16 +219,18 @@ export function ShiftHistoryScreen({ data }: ShiftHistoryScreenProps) {
               </div>
 
               <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600 pt-1">
+                <span>{t('reason_line_format', item.reason || '—')}</span>
                 <span>
-                  <span className="font-semibold text-slate-800">Reason: </span>
-                  {item.reason || '—'}
-                </span>
-                <span>
-                  Reviewer:{' '}
-                  <span className="font-semibold text-slate-800">
-                    {item.reviewedByName || 'Manager'}
-                  </span>
-                  {item.reviewNote ? ` · "${item.reviewNote}"` : ''}
+                  {item.reviewNote
+                    ? t(
+                        'reviewed_by_note_format',
+                        item.reviewedByName || t('win_manager_fallback'),
+                        item.reviewNote,
+                      )
+                    : t(
+                        'reviewed_by_format',
+                        item.reviewedByName || t('win_manager_fallback'),
+                      )}
                 </span>
               </div>
             </SurfaceCard>

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { computeScheduledHoursByUid, formatHours } from '../domain/fairnessEngine';
 import type { Shift, StaffChartRow, StaffDirectoryEntry } from '../types/cadence';
 import { invokeComputeStaffChart } from '../utils/tauriBridge';
+import { useI18n } from '../i18n/I18nContext';
 import { SurfaceCard } from './UiPrimitives';
 
 interface StaffHoursBalanceChartProps {
@@ -15,8 +16,9 @@ export function StaffHoursBalanceChart({
   staffDirectory,
   shifts,
   rustRows,
-  title = 'Team Hours & Fairness Balance',
+  title,
 }: StaffHoursBalanceChartProps) {
+  const { t } = useI18n();
   const [fetchedRows, setFetchedRows] = useState<StaffChartRow[] | null>(null);
 
   useEffect(() => {
@@ -83,23 +85,25 @@ export function StaffHoursBalanceChart({
     <SurfaceCard className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 className="text-sm font-bold text-slate-900">{title}</h3>
+          <h3 className="text-sm font-bold text-slate-900">
+            {title ?? t('chart_title')}
+          </h3>
           <p className="text-xs text-slate-500 mt-0.5">
-            Sorted from lowest utilization ratio upward to prioritize under-allocated teammates
+            {t('win_chart_subtitle')}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3 @xl:gap-4 text-xs text-slate-600">
           <span className="inline-flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-xs bg-emerald-600 inline-block" />
-            Verified Logged
+            {t('win_chart_verified')}
           </span>
           <span className="inline-flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-xs bg-blue-600 inline-block" />
-            Scheduled
+            {t('win_chart_scheduled')}
           </span>
           <span className="inline-flex items-center gap-1.5">
             <span className="w-0.5 h-3 bg-slate-900 inline-block" />
-            Weekly Target
+            {t('win_chart_target')}
           </span>
         </div>
       </div>
@@ -123,7 +127,7 @@ export function StaffHoursBalanceChart({
           return (
             <div
               key={row.uid}
-              className="grid grid-cols-1 @xl:grid-cols-[164px_1fr_138px] @4xl:grid-cols-[190px_1fr_150px] items-stretch @xl:items-center gap-1.5 @xl:gap-4"
+              className="grid grid-cols-1 @xl:grid-cols-[164px_1fr_148px] @4xl:grid-cols-[190px_1fr_160px] items-stretch @xl:items-center gap-1.5 @xl:gap-4"
             >
               <div className="flex items-baseline justify-between gap-2 @xl:block min-w-0">
                 <div className="text-xs font-semibold text-slate-900 truncate">
@@ -139,7 +143,7 @@ export function StaffHoursBalanceChart({
                 preserveAspectRatio="xMinYMid meet"
                 className="w-full h-5 overflow-visible"
                 role="img"
-                aria-label={`${row.name}: ${formatHours(row.logged)}h logged, ${formatHours(row.scheduled)}h scheduled vs ${row.target}h target`}
+                aria-label={`${row.name}: ${t('chart_hours_format', formatHours(row.logged), formatHours(row.scheduled), row.target)}`}
               >
                 <rect
                   x={0}
@@ -179,9 +183,14 @@ export function StaffHoursBalanceChart({
                 />
               </svg>
 
-              <div className="flex items-center justify-between @xl:justify-end gap-2 text-xs font-mono-tabular text-slate-700">
+              <div className="flex items-center justify-between @xl:justify-end gap-2 text-xs font-mono-tabular text-slate-700 whitespace-nowrap">
                 <span>
-                  {formatHours(row.logged)}+{formatHours(row.scheduled)}/{row.target}h
+                  {t(
+                    'chart_hours_format',
+                    formatHours(row.logged),
+                    formatHours(row.scheduled),
+                    row.target,
+                  )}
                 </span>
                 <span
                   className={`font-semibold ${

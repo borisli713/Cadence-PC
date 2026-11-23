@@ -15,10 +15,8 @@ import {
 } from '../domain/fairnessEngine';
 import {
   DATE_PATTERN,
-  SCHEDULE_CHANGE_TYPE_LABEL,
   ScheduleChangeType,
   Shift,
-  SHIFT_STATUS_LABEL,
   ShiftStatus,
   StaffDirectoryEntry,
   TIME_PATTERN,
@@ -29,6 +27,7 @@ import {
   invokeValidateScheduleChange,
   invokeValidateShift,
 } from '../utils/tauriBridge';
+import { useI18n } from '../i18n/I18nContext';
 import { ModalShell, ShiftStatusChip } from './UiPrimitives';
 
 interface ShiftDetailDialogProps {
@@ -50,6 +49,7 @@ export function ShiftDetailDialog({
   onEditShift,
   onDeleteShift,
 }: ShiftDetailDialogProps) {
+  const { t } = useI18n();
   const [deleting, setDeleting] = useState(false);
 
   if (!shift) return null;
@@ -80,10 +80,10 @@ export function ShiftDetailDialog({
                     setDeleting(false);
                   }
                 }}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-rose-700 hover:bg-rose-50 text-xs font-semibold cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-rose-700 hover:bg-rose-50 text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0"
               >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>{deleting ? 'Deleting...' : 'Delete'}</span>
+                <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                <span>{deleting ? t('win_deleting') : t('btn_delete')}</span>
               </button>
             )}
           </div>
@@ -92,10 +92,10 @@ export function ShiftDetailDialog({
             <button
               type="button"
               onClick={() => openGoogleCalendarForShift(shift)}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-800 cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-800 cursor-pointer whitespace-nowrap shrink-0"
             >
-              <CalendarPlus className="w-3.5 h-3.5 text-blue-600" />
-              <span>Google Calendar</span>
+              <CalendarPlus className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+              <span>{t('btn_google_calendar')}</span>
             </button>
 
             {canStaffRequest && (
@@ -105,13 +105,13 @@ export function ShiftDetailDialog({
                   onClose();
                   onRequestChange(shift);
                 }}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0"
               >
-                <Clock className="w-3.5 h-3.5" />
+                <Clock className="w-3.5 h-3.5 shrink-0" />
                 <span>
                   {shift.status === ShiftStatus.OPEN
-                    ? 'Claim Shift'
-                    : 'Request Change'}
+                    ? t('btn_claim_open_shift')
+                    : t('btn_request_change_swap')}
                 </span>
               </button>
             )}
@@ -123,10 +123,10 @@ export function ShiftDetailDialog({
                   onClose();
                   onEditShift(shift);
                 }}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0"
               >
-                <Edit3 className="w-3.5 h-3.5" />
-                <span>Edit Shift</span>
+                <Edit3 className="w-3.5 h-3.5 shrink-0" />
+                <span>{t('btn_edit')}</span>
               </button>
             )}
           </div>
@@ -135,31 +135,31 @@ export function ShiftDetailDialog({
     >
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <span className="text-xs text-slate-500">Status</span>
+          <span className="text-xs text-slate-500">{t('win_status_label')}</span>
           <ShiftStatusChip status={shift.status} />
         </div>
 
         <div className="grid grid-cols-2 gap-3 p-3.5 rounded-lg bg-slate-50 border border-slate-200 text-xs">
           <div>
-            <div className="text-slate-500">Assigned Staff</div>
+            <div className="text-slate-500">{t('assigned_staff_label')}</div>
             <div className="font-semibold text-slate-900 mt-0.5">
-              {shift.assignedName.trim() || 'Open / Unassigned'}
+              {shift.assignedName.trim() || t('open_unassigned')}
             </div>
           </div>
           <div>
-            <div className="text-slate-500">Duration</div>
+            <div className="text-slate-500">{t('win_duration_label')}</div>
             <div className="font-mono-tabular font-semibold text-slate-900 mt-0.5">
-              {formatHours(shift.durationHours)} hours
+              {t('duration_hours_format', formatHours(shift.durationHours))}
             </div>
           </div>
           <div>
-            <div className="text-slate-500">Date</div>
+            <div className="text-slate-500">{t('date_label')}</div>
             <div className="font-mono-tabular font-semibold text-slate-900 mt-0.5">
               {shift.date}
             </div>
           </div>
           <div>
-            <div className="text-slate-500">Window</div>
+            <div className="text-slate-500">{t('win_window_label')}</div>
             <div className="font-mono-tabular font-semibold text-slate-900 mt-0.5">
               {shift.startTime} – {shift.endTime}
             </div>
@@ -168,8 +168,7 @@ export function ShiftDetailDialog({
 
         {shift.fairnessNote && (
           <div className="p-3 rounded-lg bg-blue-50/70 border border-blue-200 text-xs text-blue-900">
-            <span className="font-semibold">Fairness Note: </span>
-            {shift.fairnessNote}
+            {t('fairness_note_format', shift.fairnessNote)}
           </div>
         )}
       </div>
@@ -203,8 +202,9 @@ export function AddShiftDialog({
   onClose,
   onCreate,
 }: AddShiftDialogProps) {
-  const [title, setTitle] = useState('Operations Shift');
-  const [department, setDepartment] = useState('Operations');
+  const { t } = useI18n();
+  const [title, setTitle] = useState(() => t('default_shift_morning'));
+  const [department, setDepartment] = useState(() => t('default_dept_operations'));
   const [date, setDate] = useState(defaultDate);
   const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime] = useState('17:00');
@@ -216,8 +216,8 @@ export function AddShiftDialog({
 
   useEffect(() => {
     if (open) {
-      setTitle('Operations Shift');
-      setDepartment('Operations');
+      setTitle(t('default_shift_morning'));
+      setDepartment(t('default_dept_operations'));
       setDate(defaultDate);
       setStartTime('09:00');
       setEndTime('17:00');
@@ -226,7 +226,7 @@ export function AddShiftDialog({
       setMarkAsOverlap(false);
       setErrorMsg(null);
     }
-  }, [open, defaultDate, staffDirectory]);
+  }, [open, defaultDate, staffDirectory, t]);
 
   const toggleCandidate = (uid: string) => {
     setSelectedCandidateUids((prev) =>
@@ -237,11 +237,11 @@ export function AddShiftDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!DATE_PATTERN.test(date)) {
-      setErrorMsg('Enter date in YYYY-MM-DD format.');
+      setErrorMsg(t('win_err_enter_date_format'));
       return;
     }
     if (!TIME_PATTERN.test(startTime) || !TIME_PATTERN.test(endTime)) {
-      setErrorMsg('Enter valid HH:MM times.');
+      setErrorMsg(t('win_err_enter_time_format'));
       return;
     }
 
@@ -264,8 +264,8 @@ export function AddShiftDialog({
         ? 'Open shift posted to team calendar'
         : `Assigned directly (${formatHours(computeShiftHours(startTime, endTime))}h)`;
 
-    const cleanTitle = title.trim() || 'Operations Shift';
-    const cleanDept = department.trim() || 'Operations';
+    const cleanTitle = title.trim() || t('default_shift_morning');
+    const cleanDept = department.trim() || t('default_dept_operations');
 
     setSaving(true);
     setErrorMsg(null);
@@ -278,7 +278,7 @@ export function AddShiftDialog({
         endTime,
       );
       if (rustValidation && !rustValidation.valid) {
-        setErrorMsg(rustValidation.errorMessage ?? 'Invalid shift schedule.');
+        setErrorMsg(rustValidation.errorMessage ?? t('win_err_enter_time_format'));
         setSaving(false);
         return;
       }
@@ -307,24 +307,24 @@ export function AddShiftDialog({
     <ModalShell
       open={open}
       onClose={onClose}
-      title="Add Team Shift"
-      subtitle="Create a scheduled shift, open slot, or multi-candidate overlap"
+      title={t('dialog_create_shift')}
+      subtitle={t('win_add_shift_subtitle')}
       footer={
         <>
           <button
             type="button"
             onClick={onClose}
-            className="px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer"
+            className="px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer whitespace-nowrap shrink-0"
           >
-            Cancel
+            {t('cancel')}
           </button>
           <button
             type="submit"
             form="add-shift-form"
             disabled={saving}
-            className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-xs font-semibold cursor-pointer"
+            className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0"
           >
-            {saving ? 'Saving...' : 'Create Shift'}
+            {saving ? t('win_saving') : t('win_create_shift')}
           </button>
         </>
       }
@@ -339,7 +339,7 @@ export function AddShiftDialog({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Shift Title
+              {t('shift_title_label')}
             </label>
             <input
               type="text"
@@ -352,7 +352,7 @@ export function AddShiftDialog({
           </div>
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Department
+              {t('department_label')}
             </label>
             <input
               type="text"
@@ -368,7 +368,7 @@ export function AddShiftDialog({
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Date
+              {t('date_label')}
             </label>
             <input
               type="date"
@@ -380,7 +380,7 @@ export function AddShiftDialog({
           </div>
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Start Time
+              {t('start_label')}
             </label>
             <input
               type="time"
@@ -392,7 +392,7 @@ export function AddShiftDialog({
           </div>
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
-              End Time
+              {t('end_label')}
             </label>
             <input
               type="time"
@@ -406,7 +406,7 @@ export function AddShiftDialog({
 
         <label className="flex items-center justify-between p-2.5 rounded-lg border border-slate-200 bg-slate-50 cursor-pointer">
           <span className="text-xs font-semibold text-slate-800">
-            Leave Open / Unassigned (Blank Shift)
+            {t('leave_open_blank')}
           </span>
           <input
             type="checkbox"
@@ -417,12 +417,12 @@ export function AddShiftDialog({
         </label>
 
         <div>
-          <div className="flex items-center justify-between mb-1.5">
+          <div className="flex items-center justify-between mb-1.5 gap-2">
             <span className="text-xs font-semibold text-slate-700">
-              Candidate Staff ({selectedCandidateUids.length} selected)
+              {t('candidate_staff_count', selectedCandidateUids.length)}
             </span>
             <span className="text-[11px] text-slate-500">
-              Select 2+ to simulate overlap resolution
+              {t('win_select_2_plus_hint')}
             </span>
           </div>
           <div className="max-h-40 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100">
@@ -448,7 +448,7 @@ export function AddShiftDialog({
                     </span>
                   </div>
                   <span className="font-mono-tabular text-slate-500 shrink-0">
-                    {formatHours(member.totalHoursWorked)}h logged
+                    {t('win_logged_hours_format', formatHours(member.totalHoursWorked))}
                   </span>
                 </label>
               );
@@ -459,7 +459,7 @@ export function AddShiftDialog({
         {!leaveOpen && selectedCandidateUids.length >= 2 && (
           <label className="flex items-center justify-between p-2.5 rounded-lg border border-amber-200 bg-amber-50 cursor-pointer">
             <span className="text-xs font-semibold text-amber-900">
-              Save as Overlap Conflict for Fairness Engine
+              {t('save_as_overlap_conflict')}
             </span>
             <input
               type="checkbox"
@@ -498,6 +498,7 @@ export function EditShiftDialog({
   onClose,
   onSave,
 }: EditShiftDialogProps) {
+  const { t } = useI18n();
   const [title, setTitle] = useState('');
   const [department, setDepartment] = useState('');
   const [date, setDate] = useState('');
@@ -528,7 +529,7 @@ export function EditShiftDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!DATE_PATTERN.test(date) || !TIME_PATTERN.test(startTime) || !TIME_PATTERN.test(endTime)) {
-      setErrorMsg('Verify date (YYYY-MM-DD) and times (HH:MM).');
+      setErrorMsg(t('win_err_report_datetime'));
       return;
     }
 
@@ -536,8 +537,8 @@ export function EditShiftDialog({
     const effectiveStatus = !assignedUid ? ShiftStatus.OPEN : status;
     const assignedName = member?.displayName ?? (assignedUid ? shift.assignedName : '');
 
-    const cleanTitle = title.trim() || 'Shift';
-    const cleanDept = department.trim() || 'Operations';
+    const cleanTitle = title.trim() || t('win_table_shift');
+    const cleanDept = department.trim() || t('default_dept_operations');
 
     setSaving(true);
     setErrorMsg(null);
@@ -550,7 +551,7 @@ export function EditShiftDialog({
         endTime,
       );
       if (rustValidation && !rustValidation.valid) {
-        setErrorMsg(rustValidation.errorMessage ?? 'Invalid shift details.');
+        setErrorMsg(rustValidation.errorMessage ?? t('win_err_report_datetime'));
         setSaving(false);
         return;
       }
@@ -579,24 +580,24 @@ export function EditShiftDialog({
     <ModalShell
       open={Boolean(shift)}
       onClose={onClose}
-      title="Edit Shift"
-      subtitle={`Shift ID: ${shift.id}`}
+      title={t('dialog_edit_shift')}
+      subtitle={t('win_shift_id_format', shift.id)}
       footer={
         <>
           <button
             type="button"
             onClick={onClose}
-            className="px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer"
+            className="px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer whitespace-nowrap shrink-0"
           >
-            Cancel
+            {t('cancel')}
           </button>
           <button
             type="submit"
             form="edit-shift-form"
             disabled={saving}
-            className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-xs font-semibold cursor-pointer"
+            className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0"
           >
-            {saving ? 'Updating...' : 'Save Shift'}
+            {saving ? t('win_updating') : t('win_save_shift')}
           </button>
         </>
       }
@@ -611,7 +612,7 @@ export function EditShiftDialog({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Shift Title
+              {t('shift_title_label')}
             </label>
             <input
               type="text"
@@ -624,7 +625,7 @@ export function EditShiftDialog({
           </div>
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Department
+              {t('department_label')}
             </label>
             <input
               type="text"
@@ -640,7 +641,7 @@ export function EditShiftDialog({
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Date
+              {t('date_label')}
             </label>
             <input
               type="date"
@@ -652,7 +653,7 @@ export function EditShiftDialog({
           </div>
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Start Time
+              {t('start_label')}
             </label>
             <input
               type="time"
@@ -664,7 +665,7 @@ export function EditShiftDialog({
           </div>
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
-              End Time
+              {t('end_label')}
             </label>
             <input
               type="time"
@@ -679,7 +680,7 @@ export function EditShiftDialog({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Assigned Staff
+              {t('assigned_staff_label')}
             </label>
             <select
               value={assignedUid}
@@ -691,17 +692,17 @@ export function EditShiftDialog({
               }}
               className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-900"
             >
-              <option value="">Open / Unassigned</option>
+              <option value="">{t('open_unassigned')}</option>
               {staffDirectory.map((m) => (
                 <option key={m.uid} value={m.uid}>
-                  {m.displayName} ({m.department})
+                  {t('staff_dept_option_format', m.displayName, m.department)}
                 </option>
               ))}
             </select>
           </div>
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Status
+              {t('win_status_label')}
             </label>
             <select
               value={status}
@@ -710,7 +711,7 @@ export function EditShiftDialog({
             >
               {Object.values(ShiftStatus).map((st) => (
                 <option key={st} value={st}>
-                  {SHIFT_STATUS_LABEL[st]}
+                  {t(`status_${st}`)}
                 </option>
               ))}
             </select>
@@ -719,7 +720,7 @@ export function EditShiftDialog({
 
         <div>
           <label className="block text-xs font-semibold text-slate-700 mb-1">
-            Fairness / Schedule Note
+            {t('fairness_shift_note_label')}
           </label>
           <textarea
             value={fairnessNote}
@@ -766,6 +767,7 @@ export function RequestChangeDialog({
   onClose,
   onSubmit,
 }: RequestChangeDialogProps) {
+  const { t } = useI18n();
   const eligibleShifts = useMemo(
     () =>
       shifts.filter((s) => {
@@ -849,19 +851,19 @@ export function RequestChangeDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedShift) {
-      setErrorMsg('No eligible shift selected.');
+      setErrorMsg(t('win_err_no_eligible_shift'));
       return;
     }
     if (!DATE_PATTERN.test(proposedDate) || !TIME_PATTERN.test(proposedStart) || !TIME_PATTERN.test(proposedEnd)) {
-      setErrorMsg('Enter valid proposed date and time.');
+      setErrorMsg(t('win_err_enter_time_format'));
       return;
     }
     if (computeShiftHours(proposedStart, proposedEnd) < 0.25) {
-      setErrorMsg('Shift duration must be at least 15 minutes.');
+      setErrorMsg(t('win_err_min_duration'));
       return;
     }
     if (!reason.trim()) {
-      setErrorMsg('Please include a brief reason for manager review.');
+      setErrorMsg(t('win_err_enter_reason'));
       return;
     }
 
@@ -874,7 +876,7 @@ export function RequestChangeDialog({
     } else if (changeType === ScheduleChangeType.SWAP) {
       const target = staffDirectory.find((m) => m.uid === swapUid);
       if (!target) {
-        setErrorMsg('Select a teammate to swap this shift with.');
+        setErrorMsg(t('win_err_select_teammate'));
         return;
       }
       proposedAssigneeUid = target.uid;
@@ -897,7 +899,7 @@ export function RequestChangeDialog({
       );
       if (rustValidation && !rustValidation.valid) {
         setErrorMsg(
-          rustValidation.errorMessage ?? 'Schedule change request failed validation.',
+          rustValidation.errorMessage ?? t('win_err_enter_time_format'),
         );
         setSaving(false);
         return;
@@ -925,31 +927,31 @@ export function RequestChangeDialog({
     <ModalShell
       open={open}
       onClose={onClose}
-      title="Request Schedule Change"
-      subtitle="Submit a time adjustment, swap, drop, or open shift claim for manager approval"
+      title={t('dialog_request_change')}
+      subtitle={t('win_req_change_subtitle')}
       footer={
         <>
           <button
             type="button"
             onClick={onClose}
-            className="px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer"
+            className="px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer whitespace-nowrap shrink-0"
           >
-            Cancel
+            {t('cancel')}
           </button>
           <button
             type="submit"
             form="request-change-form"
             disabled={saving || !selectedShift}
-            className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-xs font-semibold cursor-pointer"
+            className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0"
           >
-            {saving ? 'Submitting...' : 'Submit Request'}
+            {saving ? t('win_submitting') : t('submit_request')}
           </button>
         </>
       }
     >
       {eligibleShifts.length === 0 ? (
         <p className="text-xs text-slate-600 py-2">
-          There are no open or assigned shifts available to request a change on.
+          {t('win_no_eligible_shifts')}
         </p>
       ) : (
         <form id="request-change-form" onSubmit={handleSubmit} className="space-y-3.5">
@@ -961,7 +963,7 @@ export function RequestChangeDialog({
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Shift
+              {t('select_shift_label')}
             </label>
             <select
               value={selectedShift?.id ?? ''}
@@ -971,7 +973,7 @@ export function RequestChangeDialog({
               {eligibleShifts.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.date} · {s.title} ({s.startTime}–{s.endTime}) ·{' '}
-                  {s.assignedName.trim() || 'Open'}
+                  {s.assignedName.trim() || t('win_open_short')}
                 </option>
               ))}
             </select>
@@ -979,21 +981,21 @@ export function RequestChangeDialog({
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              Request Type
+              {t('win_req_type_label')}
             </label>
             <div className="flex flex-wrap gap-2">
-              {availableTypes.map((t) => (
+              {availableTypes.map((typeOption) => (
                 <button
-                  key={t}
+                  key={typeOption}
                   type="button"
-                  onClick={() => setChangeType(t)}
-                  className={`px-3 py-1.5 rounded-lg border text-xs font-semibold cursor-pointer transition-colors ${
-                    changeType === t
+                  onClick={() => setChangeType(typeOption)}
+                  className={`px-3 py-1.5 rounded-lg border text-xs font-semibold cursor-pointer transition-colors whitespace-nowrap shrink-0 ${
+                    changeType === typeOption
                       ? 'bg-blue-600 border-blue-600 text-white'
                       : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
                   }`}
                 >
-                  {SCHEDULE_CHANGE_TYPE_LABEL[t]}
+                  {t(`change_type_${typeOption}`)}
                 </button>
               ))}
             </div>
@@ -1003,7 +1005,7 @@ export function RequestChangeDialog({
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Proposed Date
+                  {t('proposed_date_iso')}
                 </label>
                 <input
                   type="date"
@@ -1015,7 +1017,7 @@ export function RequestChangeDialog({
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Proposed Start
+                  {t('win_proposed_start')}
                 </label>
                 <input
                   type="time"
@@ -1027,7 +1029,7 @@ export function RequestChangeDialog({
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Proposed End
+                  {t('win_proposed_end')}
                 </label>
                 <input
                   type="time"
@@ -1043,7 +1045,7 @@ export function RequestChangeDialog({
           {changeType === ScheduleChangeType.SWAP && (
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Swap With Teammate
+                {t('swap_with_label')}
               </label>
               <select
                 value={swapUid}
@@ -1051,12 +1053,12 @@ export function RequestChangeDialog({
                 required
                 className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-900"
               >
-                <option value="">Select teammate...</option>
+                <option value="">{t('select_swap_teammate')}</option>
                 {staffDirectory
                   .filter((m) => m.uid !== (selectedShift?.assignedUid || currentUid))
                   .map((m) => (
                     <option key={m.uid} value={m.uid}>
-                      {m.displayName} ({m.department} · {formatHours(m.totalHoursWorked)}h logged)
+                      {m.displayName} ({m.department} · {t('win_logged_hours_format', formatHours(m.totalHoursWorked))})
                     </option>
                   ))}
               </select>
@@ -1065,12 +1067,12 @@ export function RequestChangeDialog({
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Reason
+              {t('reason_label')}
             </label>
             <textarea
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="Explain why this change is needed..."
+              placeholder={t('reason_placeholder')}
               maxLength={400}
               rows={3}
               required
@@ -1103,24 +1105,25 @@ export function SubmitAvailabilityDialog({
   onClose,
   onSubmitBatch,
 }: SubmitAvailabilityDialogProps) {
+  const { bcp47Tag, t } = useI18n();
   const nextWeekMonday = useMemo(() => addDaysIso(getMondayIso(), 7), []);
   const weekDays = useMemo(
     () =>
       Array.from({ length: 7 }, (_, i) => {
         const iso = addDaysIso(nextWeekMonday, i);
         const dateObj = new Date(`${iso}T12:00:00`);
-        const label = new Intl.DateTimeFormat(undefined, {
+        const label = new Intl.DateTimeFormat(bcp47Tag || undefined, {
           weekday: 'short',
           month: 'short',
           day: 'numeric',
         }).format(dateObj);
         return { iso, label, isWeekday: i < 5 };
       }),
-    [nextWeekMonday],
+    [nextWeekMonday, bcp47Tag],
   );
 
   const [selectedDates, setSelectedDates] = useState<string[]>([]);
-  const [shiftTitle, setShiftTitle] = useState('Preferred Operations Shift');
+  const [shiftTitle, setShiftTitle] = useState(() => t('default_avail_title'));
   const [department, setDepartment] = useState(defaultDepartment);
   const [startTime, setStartTime] = useState('07:00');
   const [endTime, setEndTime] = useState('15:00');
@@ -1131,14 +1134,14 @@ export function SubmitAvailabilityDialog({
   useEffect(() => {
     if (open) {
       setSelectedDates(weekDays.filter((d) => d.isWeekday).map((d) => d.iso));
-      setShiftTitle('Preferred Operations Shift');
+      setShiftTitle(t('default_avail_title'));
       setDepartment(defaultDepartment);
       setStartTime('07:00');
       setEndTime('15:00');
       setNotes('');
       setErrorMsg(null);
     }
-  }, [open, defaultDepartment, weekDays]);
+  }, [open, defaultDepartment, weekDays, t]);
 
   const toggleDate = (iso: string) => {
     setSelectedDates((prev) =>
@@ -1149,11 +1152,11 @@ export function SubmitAvailabilityDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (selectedDates.length === 0) {
-      setErrorMsg('Select at least one day of availability.');
+      setErrorMsg(t('win_err_select_avail_day'));
       return;
     }
     if (!TIME_PATTERN.test(startTime) || !TIME_PATTERN.test(endTime)) {
-      setErrorMsg('Enter valid HH:MM availability times.');
+      setErrorMsg(t('win_err_enter_time_format'));
       return;
     }
 
@@ -1164,8 +1167,8 @@ export function SubmitAvailabilityDialog({
         dates: selectedDates,
         startTime,
         endTime,
-        shiftTitle: shiftTitle.trim() || 'Available Shift',
-        department: department.trim() || 'Operations',
+        shiftTitle: shiftTitle.trim() || t('availability_default_title'),
+        department: department.trim() || t('default_dept_operations'),
         notes: notes.trim(),
       });
       onClose();
@@ -1180,26 +1183,31 @@ export function SubmitAvailabilityDialog({
     <ModalShell
       open={open}
       onClose={onClose}
-      title="Submit Shift Availability"
-      subtitle={`Quickly post available days for week of ${formatIsoDate(new Date(`${nextWeekMonday}T12:00:00`))}`}
+      title={t('dialog_submit_availability')}
+      subtitle={t(
+        'win_next_week_avail_sub_format',
+        formatIsoDate(new Date(`${nextWeekMonday}T12:00:00`)),
+      )}
       footer={
         <>
           <button
             type="button"
             onClick={onClose}
-            className="px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer"
+            className="px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer whitespace-nowrap shrink-0"
           >
-            Cancel
+            {t('cancel')}
           </button>
           <button
             type="submit"
             form="availability-form"
             disabled={saving}
-            className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-xs font-semibold cursor-pointer"
+            className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0"
           >
             {saving
-              ? 'Submitting...'
-              : `Submit ${selectedDates.length} Day${selectedDates.length === 1 ? '' : 's'}`}
+              ? t('win_submitting')
+              : selectedDates.length === 1
+                ? t('win_submit_days_singular')
+                : t('win_submit_days_plural', selectedDates.length)}
           </button>
         </>
       }
@@ -1213,7 +1221,7 @@ export function SubmitAvailabilityDialog({
 
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="text-xs font-semibold text-slate-700">
-            Select Available Days
+            {t('win_select_avail_days')}
           </span>
           <div className="flex items-center gap-2">
             <button
@@ -1223,16 +1231,16 @@ export function SubmitAvailabilityDialog({
                   weekDays.filter((d) => d.isWeekday).map((d) => d.iso),
                 )
               }
-              className="px-2.5 py-1 rounded-md border border-slate-300 bg-slate-50 hover:bg-slate-100 text-[11px] font-semibold text-slate-700 cursor-pointer"
+              className="px-2.5 py-1 rounded-md border border-slate-300 bg-slate-50 hover:bg-slate-100 text-[11px] font-semibold text-slate-700 cursor-pointer whitespace-nowrap shrink-0"
             >
-              Next Mon–Fri
+              {t('next_mon_fri')}
             </button>
             <button
               type="button"
               onClick={() => setSelectedDates(weekDays.map((d) => d.iso))}
-              className="px-2.5 py-1 rounded-md border border-slate-300 bg-slate-50 hover:bg-slate-100 text-[11px] font-semibold text-slate-700 cursor-pointer"
+              className="px-2.5 py-1 rounded-md border border-slate-300 bg-slate-50 hover:bg-slate-100 text-[11px] font-semibold text-slate-700 cursor-pointer whitespace-nowrap shrink-0"
             >
-              Next 7 Days
+              {t('next_7_days')}
             </button>
           </div>
         </div>
@@ -1251,7 +1259,7 @@ export function SubmitAvailabilityDialog({
                     : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
                 }`}
               >
-                <div className="text-xs font-semibold">{day.label}</div>
+                <div className="text-xs font-semibold truncate">{day.label}</div>
                 <div
                   className={`text-[11px] font-mono-tabular ${
                     active ? 'text-blue-100' : 'text-slate-400'
@@ -1267,7 +1275,7 @@ export function SubmitAvailabilityDialog({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Preferred Role / Title
+              {t('preferred_role_title')}
             </label>
             <input
               type="text"
@@ -1280,7 +1288,7 @@ export function SubmitAvailabilityDialog({
           </div>
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Department
+              {t('department_label')}
             </label>
             <input
               type="text"
@@ -1296,7 +1304,7 @@ export function SubmitAvailabilityDialog({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Available From
+              {t('win_available_from')}
             </label>
             <input
               type="time"
@@ -1308,7 +1316,7 @@ export function SubmitAvailabilityDialog({
           </div>
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Available Until
+              {t('win_available_until')}
             </label>
             <input
               type="time"
@@ -1322,14 +1330,14 @@ export function SubmitAvailabilityDialog({
 
         <div>
           <label className="block text-xs font-semibold text-slate-700 mb-1">
-            Notes (Optional)
+            {t('notes_optional')}
           </label>
           <input
             type="text"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             maxLength={300}
-            placeholder="Preferred station, transit constraint..."
+            placeholder={t('win_avail_notes_placeholder')}
             className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm text-slate-900"
           />
         </div>
@@ -1351,6 +1359,7 @@ export function WeekSlotsDialog({
   onClose,
   onSaveSlots,
 }: WeekSlotsDialogProps) {
+  const { t } = useI18n();
   const [draft, setDraft] = useState<WeekSlotConfig[]>(slots);
 
   useEffect(() => {
@@ -1373,8 +1382,8 @@ export function WeekSlotsDialog({
     <ModalShell
       open={open}
       onClose={onClose}
-      title="Weekly Shift Slot Templates"
-      subtitle="Configure daily Morning, Midday, and Closing shift slots used by Generate Week"
+      title={t('dialog_week_slots')}
+      subtitle={t('win_week_slots_subtitle')}
       maxWidthClass="max-w-2xl"
       footer={
         <div className="w-full flex items-center justify-between gap-2">
@@ -1383,17 +1392,17 @@ export function WeekSlotsDialog({
             onClick={() =>
               setDraft(DEFAULT_WEEK_SLOTS.map((s) => ({ ...s })))
             }
-            className="px-3 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-200 cursor-pointer"
+            className="px-3 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-200 cursor-pointer whitespace-nowrap shrink-0"
           >
-            Reset Defaults
+            {t('win_reset_defaults')}
           </button>
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer"
+              className="px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer whitespace-nowrap shrink-0"
             >
-              Cancel
+              {t('cancel')}
             </button>
             <button
               type="button"
@@ -1401,9 +1410,9 @@ export function WeekSlotsDialog({
                 onSaveSlots(draft);
                 onClose();
               }}
-              className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer"
+              className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0"
             >
-              Save Templates
+              {t('save_templates')}
             </button>
           </div>
         </div>
@@ -1416,12 +1425,12 @@ export function WeekSlotsDialog({
             className="p-3.5 rounded-lg border border-slate-200 bg-slate-50 space-y-2.5"
           >
             <div className="text-xs font-bold text-slate-900">
-              {slot.label} Template
+              {t('slot_label_format', slot.label)}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
               <div className="sm:col-span-2">
                 <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                  Title
+                  {t('title_label')}
                 </label>
                 <input
                   type="text"
@@ -1432,7 +1441,7 @@ export function WeekSlotsDialog({
               </div>
               <div>
                 <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                  Department
+                  {t('department_label')}
                 </label>
                 <input
                   type="text"
@@ -1446,7 +1455,7 @@ export function WeekSlotsDialog({
               <div className="grid grid-cols-2 gap-1.5">
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    Start
+                    {t('start_label')}
                   </label>
                   <input
                     type="time"
@@ -1459,7 +1468,7 @@ export function WeekSlotsDialog({
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    End
+                    {t('end_label')}
                   </label>
                   <input
                     type="time"

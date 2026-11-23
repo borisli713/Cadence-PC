@@ -29,6 +29,7 @@ import {
   StatusChip,
   SurfaceCard,
 } from '../components/UiPrimitives';
+import { useI18n } from '../i18n/I18nContext';
 
 interface TeamHoursScreenProps {
   data: WorkspaceUiData;
@@ -53,6 +54,7 @@ export function TeamHoursScreen({
   onSeedSampleData,
   onShowFeedback,
 }: TeamHoursScreenProps) {
+  const { t } = useI18n();
   const isManager = data.profile.role === UserRole.MANAGER;
   const scheduledByUid = useMemo(
     () => computeScheduledHoursByUid(data.shifts),
@@ -73,7 +75,9 @@ export function TeamHoursScreen({
 
   const [addOpen, setAddOpen] = useState(false);
   const [name, setName] = useState('');
-  const [department, setDepartment] = useState('Operations');
+  const [department, setDepartment] = useState(() =>
+    t('default_dept_operations'),
+  );
   const [targetHours, setTargetHours] = useState('40');
   const [role, setRole] = useState<UserRole>(UserRole.STAFF);
   const [saving, setSaving] = useState(false);
@@ -85,11 +89,11 @@ export function TeamHoursScreen({
     e.preventDefault();
     const parsedTarget = Number.parseInt(targetHours, 10);
     if (!name.trim()) {
-      setErrorMsg('Enter staff member display name.');
+      setErrorMsg(t('win_err_enter_member_name'));
       return;
     }
     if (Number.isNaN(parsedTarget) || parsedTarget < 1 || parsedTarget > 80) {
-      setErrorMsg('Weekly target must be between 1 and 80.');
+      setErrorMsg(t('win_err_target_range'));
       return;
     }
 
@@ -98,16 +102,16 @@ export function TeamHoursScreen({
     try {
       await onAddRosterStaff(
         name.trim(),
-        department.trim() || 'Operations',
+        department.trim() || t('default_dept_operations'),
         parsedTarget,
         role,
       );
       setAddOpen(false);
       setName('');
-      setDepartment('Operations');
+      setDepartment(t('default_dept_operations'));
       setTargetHours('40');
       setRole(UserRole.STAFF);
-      onShowFeedback('Added staff member to team roster.');
+      onShowFeedback(t('vm_banner_member_added'));
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : String(err));
     } finally {
@@ -119,9 +123,11 @@ export function TeamHoursScreen({
     <div className="space-y-5 @xl:space-y-6">
       <div className="flex flex-col @3xl:flex-row @3xl:items-start @3xl:justify-between gap-3 @xl:gap-4">
         <div className="min-w-0">
-          <h1 className="text-xl @xl:text-2xl font-bold text-slate-900">Team Hours</h1>
+          <h1 className="text-xl @xl:text-2xl font-bold text-slate-900">
+            {t('team_title')}
+          </h1>
           <p className="text-xs @xl:text-sm text-slate-500 mt-1">
-            Fairness utilization ledger sorted lowest-ratio first, roster roles, and sample scenario seeding
+            {t('team_subtitle')}
           </p>
         </div>
 
@@ -135,7 +141,7 @@ export function TeamHoursScreen({
                   data.shifts,
                 );
                 if (typeof savedPath === 'string') {
-                  onShowFeedback(`Exported team hours CSV to ${savedPath}`);
+                  onShowFeedback(t('win_saved_csv_format', savedPath));
                 } else if (savedPath === undefined) {
                   const csv = [
                     'Name,Department,Role,LoggedHours,ScheduledHours,TargetHours,Utilization%',
@@ -151,7 +157,9 @@ export function TeamHoursScreen({
                       ].join(','),
                     ),
                   ].join('\n');
-                  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+                  const blob = new Blob([csv], {
+                    type: 'text/csv;charset=utf-8',
+                  });
                   const url = URL.createObjectURL(blob);
                   const a = document.createElement('a');
                   a.href = url;
@@ -160,28 +168,30 @@ export function TeamHoursScreen({
                   a.click();
                   document.body.removeChild(a);
                   URL.revokeObjectURL(url);
-                  onShowFeedback('Exported team hours CSV.');
+                  onShowFeedback(t('win_exported_csv_notice'));
                 }
               }}
               className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-800 cursor-pointer whitespace-nowrap shrink-0"
             >
               <Download className="w-4 h-4 text-slate-600" />
-              <span>Export CSV</span>
+              <span>{t('win_export_csv')}</span>
             </button>
           )}
           {data.staffDirectory.length > 0 && isTauriDesktop() && (
             <button
               type="button"
               onClick={async () => {
-                const savedPath = await invokeSavePayrollSummary('Active Workspace');
+                const savedPath = await invokeSavePayrollSummary(
+                  t('win_workspace_label'),
+                );
                 if (typeof savedPath === 'string') {
-                  onShowFeedback(`Saved payroll HTML summary to ${savedPath}`);
+                  onShowFeedback(t('win_saved_html_format', savedPath));
                 }
               }}
               className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-800 cursor-pointer whitespace-nowrap shrink-0"
             >
               <FileText className="w-4 h-4 text-slate-600" />
-              <span>Export HTML</span>
+              <span>{t('win_export_html')}</span>
             </button>
           )}
           {isManager && (
@@ -193,9 +203,7 @@ export function TeamHoursScreen({
                   setSeeding(true);
                   try {
                     await onSeedSampleData();
-                    onShowFeedback(
-                      'Loaded sample overlaps, pending requests, shift report, and time off.',
-                    );
+                    onShowFeedback(t('vm_banner_sample_loaded'));
                   } finally {
                     setSeeding(false);
                   }
@@ -204,7 +212,7 @@ export function TeamHoursScreen({
               >
                 <Database className="w-4 h-4 text-slate-600" />
                 <span>
-                  {seeding ? 'Seeding...' : 'Load Sample Overlaps & Requests'}
+                  {seeding ? t('win_seeding') : t('btn_load_sample_data')}
                 </span>
               </button>
 
@@ -212,12 +220,13 @@ export function TeamHoursScreen({
                 type="button"
                 onClick={() => {
                   setErrorMsg(null);
+                  setDepartment(t('default_dept_operations'));
                   setAddOpen(true);
                 }}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0"
               >
                 <UserPlus className="w-4 h-4" />
-                <span>Add Roster Staff</span>
+                <span>{t('btn_add_roster_staff')}</span>
               </button>
             </>
           )}
@@ -233,8 +242,8 @@ export function TeamHoursScreen({
       {sortedStaff.length === 0 ? (
         <EmptyStatePanel
           icon={<Users className="w-5 h-5" />}
-          title="No team members in directory yet"
-          subtitle="Managers can add roster staff or load sample overlaps to test fairness scheduling."
+          title={t('empty_team_title')}
+          subtitle={t('empty_team_subtitle')}
         />
       ) : (
         <div className="grid grid-cols-1 @2xl:grid-cols-2 @6xl:grid-cols-3 gap-4">
@@ -255,20 +264,26 @@ export function TeamHoursScreen({
                         {member.displayName}
                       </h3>
                       {member.uid === data.profile.uid && (
-                        <StatusChip label="You" tone="info" />
+                        <StatusChip label={t('win_you_chip')} tone="info" />
                       )}
                       {member.isSampleRoster && (
-                        <StatusChip label="Sample" tone="neutral" />
+                        <StatusChip
+                          label={t('win_sample_chip')}
+                          tone="neutral"
+                        />
                       )}
                     </div>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      {member.department} · Target {target}h/wk
+                      {member.department} ·{' '}
+                      {t('win_target_week_format', target)}
                     </p>
                   </div>
 
                   <StatusChip
                     label={
-                      member.role === UserRole.MANAGER ? 'Manager' : 'Staff'
+                      member.role === UserRole.MANAGER
+                        ? t('role_manager')
+                        : t('role_staff')
                     }
                     tone={
                       member.role === UserRole.MANAGER ? 'violet' : 'neutral'
@@ -278,19 +293,25 @@ export function TeamHoursScreen({
 
                 <div className="grid grid-cols-3 gap-2 p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs">
                   <div>
-                    <div className="text-[11px] text-slate-500">Logged</div>
+                    <div className="text-[11px] text-slate-500">
+                      {t('win_logged_col')}
+                    </div>
                     <div className="font-mono-tabular font-semibold text-emerald-700">
-                      {formatHours(member.totalHoursWorked)}h
+                      {t('kpi_hours_value_format', formatHours(member.totalHoursWorked))}
                     </div>
                   </div>
                   <div>
-                    <div className="text-[11px] text-slate-500">Scheduled</div>
+                    <div className="text-[11px] text-slate-500">
+                      {t('win_scheduled_col')}
+                    </div>
                     <div className="font-mono-tabular font-semibold text-blue-700">
-                      {formatHours(scheduled)}h
+                      {t('kpi_hours_value_format', formatHours(scheduled))}
                     </div>
                   </div>
                   <div>
-                    <div className="text-[11px] text-slate-500">Utilization</div>
+                    <div className="text-[11px] text-slate-500">
+                      {t('win_utilization_col')}
+                    </div>
                     <div className="font-mono-tabular font-semibold text-slate-900">
                       {pct}%
                     </div>
@@ -308,27 +329,25 @@ export function TeamHoursScreen({
                           const grant = member.role !== UserRole.MANAGER;
                           await onToggleManagerRole(member, grant);
                           onShowFeedback(
-                            `${
-                              grant ? 'Promoted' : 'Changed'
-                            } ${member.displayName} to ${
-                              grant ? 'Manager' : 'Staff'
-                            }.`,
+                            grant
+                              ? t('vm_banner_promoted_manager', member.displayName)
+                              : t('vm_banner_set_staff', member.displayName),
                           );
                         } finally {
                           setTogglingUid(null);
                         }
                       }}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-60 text-xs font-semibold text-slate-800 cursor-pointer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-60 text-xs font-semibold text-slate-800 cursor-pointer whitespace-nowrap shrink-0"
                     >
                       {member.role === UserRole.MANAGER ? (
                         <>
                           <ShieldOff className="w-3.5 h-3.5 text-slate-600" />
-                          <span>Set Role to Staff</span>
+                          <span>{t('btn_set_staff')}</span>
                         </>
                       ) : (
                         <>
                           <Shield className="w-3.5 h-3.5 text-violet-600" />
-                          <span>Promote to Manager</span>
+                          <span>{t('btn_promote_manager')}</span>
                         </>
                       )}
                     </button>
@@ -344,24 +363,24 @@ export function TeamHoursScreen({
       <ModalShell
         open={addOpen}
         onClose={() => setAddOpen(false)}
-        title="Add Roster Staff Member"
-        subtitle="Create a team roster entry for shift planning and fairness tracking"
+        title={t('dialog_add_roster_member')}
+        subtitle={t('win_add_roster_subtitle')}
         footer={
           <>
             <button
               type="button"
               onClick={() => setAddOpen(false)}
-              className="px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer"
+              className="px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer whitespace-nowrap shrink-0"
             >
-              Cancel
+              {t('cancel')}
             </button>
             <button
               type="submit"
               form="add-roster-form"
               disabled={saving}
-              className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-xs font-semibold cursor-pointer"
+              className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0"
             >
-              {saving ? 'Adding...' : 'Add Member'}
+              {saving ? t('win_adding') : t('btn_add_member')}
             </button>
           </>
         }
@@ -379,13 +398,13 @@ export function TeamHoursScreen({
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Full Name
+              {t('full_name_label')}
             </label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Alex Rivera"
+              placeholder={t('win_placeholder_name')}
               maxLength={80}
               required
               className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm text-slate-900"
@@ -395,7 +414,7 @@ export function TeamHoursScreen({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Department
+                {t('department_label')}
               </label>
               <input
                 type="text"
@@ -408,7 +427,7 @@ export function TeamHoursScreen({
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Target Hours/Wk
+                {t('win_target_hours_wk')}
               </label>
               <input
                 type="number"
@@ -421,15 +440,15 @@ export function TeamHoursScreen({
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Role
+                {t('win_role_label')}
               </label>
               <select
                 value={role}
                 onChange={(e) => setRole(e.target.value as UserRole)}
                 className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-900"
               >
-                <option value={UserRole.STAFF}>Staff</option>
-                <option value={UserRole.MANAGER}>Manager</option>
+                <option value={UserRole.STAFF}>{t('role_staff')}</option>
+                <option value={UserRole.MANAGER}>{t('role_manager')}</option>
               </select>
             </div>
           </div>

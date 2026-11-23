@@ -28,6 +28,7 @@ import {
   WorkspaceUiData,
 } from '../types/cadence';
 import { exportIcsFile } from '../utils/calendarExport';
+import { useI18n } from '../i18n/I18nContext';
 import { StaffHoursBalanceChart } from '../components/StaffHoursBalanceChart';
 import {
   EmptyStatePanel,
@@ -71,6 +72,7 @@ export function ScheduleFairnessScreen({
   onWithdrawSubmission,
   onShowFeedback,
 }: ScheduleFairnessScreenProps) {
+  const { bcp47Tag, t } = useI18n();
   const [subTab, setSubTab] = useState<ScheduleSubTab>('calendar');
   const [calendarMode, setCalendarMode] = useState<'week' | 'month'>('week');
   const [anchorDate, setAnchorDate] = useState<string>(getMondayIso());
@@ -172,12 +174,10 @@ export function ScheduleFairnessScreen({
     try {
       const count = await onCommitFairnessPlan();
       if (count === 0) {
-        onShowFeedback('No overlapping candidate shifts require arrangement.');
+        onShowFeedback(t('vm_banner_no_overlaps'));
         return;
       }
-      onShowFeedback(
-        `Fairness Engine resolved ${count} overlapping shift${count === 1 ? '' : 's'}.`,
-      );
+      onShowFeedback(t('vm_banner_overlaps_arranged', count));
     } finally {
       setBusyAction(null);
     }
@@ -188,12 +188,10 @@ export function ScheduleFairnessScreen({
     try {
       const count = await onCommitOpenShiftPlan();
       if (count === 0) {
-        onShowFeedback('No open shifts could be matched cleanly.');
+        onShowFeedback(t('vm_banner_no_open_eligible'));
         return;
       }
-      onShowFeedback(
-        `Assigned ${count} open shift${count === 1 ? '' : 's'} by fairness balance.`,
-      );
+      onShowFeedback(t('vm_banner_open_assigned', count));
     } finally {
       setBusyAction(null);
     }
@@ -205,14 +203,10 @@ export function ScheduleFairnessScreen({
       const mondayIso = addDaysIso(getMondayIso(), 7);
       const res = await onGenerateWeeklySchedule(mondayIso);
       if (res.assigned === 0 && res.open === 0) {
-        onShowFeedback(
-          `All shift slots for week of ${mondayIso} already exist on the calendar.`,
-        );
+        onShowFeedback(t('vm_banner_week_populated'));
         return;
       }
-      onShowFeedback(
-        `Generated week of ${mondayIso}: ${res.assigned} assigned, ${res.open} open.`,
-      );
+      onShowFeedback(t('vm_banner_week_generated', res.assigned, res.open, 0));
     } finally {
       setBusyAction(null);
     }
@@ -220,7 +214,7 @@ export function ScheduleFairnessScreen({
 
   const handleExportTeamIcs = async () => {
     if (visibleCalendarShifts.length === 0) {
-      onShowFeedback('No shifts to export.');
+      onShowFeedback(t('win_no_shifts_export'));
       return;
     }
     const saved = await exportIcsFile(
@@ -229,20 +223,30 @@ export function ScheduleFairnessScreen({
     );
     if (saved) {
       onShowFeedback(
-        `Exported ${visibleCalendarShifts.length} shifts to ${saved}`,
+        t('win_exported_shifts_format', visibleCalendarShifts.length, saved),
       );
     }
   };
+
+  const monthHeaderDays = [
+    t('win_mon'),
+    t('win_tue'),
+    t('win_wed'),
+    t('win_thu'),
+    t('win_fri'),
+    t('win_sat'),
+    t('win_sun'),
+  ];
 
   return (
     <div className="space-y-5 @xl:space-y-6">
       <div className="flex flex-col @3xl:flex-row @3xl:items-start @3xl:justify-between gap-3 @xl:gap-4">
         <div className="min-w-0">
           <h1 className="text-xl @xl:text-2xl font-bold text-slate-900">
-            Schedule &amp; Fairness
+            {t('schedule_fairness_title')}
           </h1>
           <p className="text-xs @xl:text-sm text-slate-500 mt-1">
-            Team calendar, staff availability submissions, and Rust-powered fairness overlap allocation
+            {t('schedule_fairness_subtitle')}
           </p>
         </div>
 
@@ -252,8 +256,8 @@ export function ScheduleFairnessScreen({
             onClick={onOpenSubmitAvailability}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0"
           >
-            <CalendarPlus className="w-3.5 h-3.5" />
-            <span>Submit Availability</span>
+            <CalendarPlus className="w-3.5 h-3.5 shrink-0" />
+            <span>{t('btn_submit_availability')}</span>
           </button>
 
           <button
@@ -261,8 +265,8 @@ export function ScheduleFairnessScreen({
             onClick={() => onNavigate(CadenceTab.MY_SCHEDULE)}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-800 cursor-pointer whitespace-nowrap shrink-0"
           >
-            <Calendar className="w-3.5 h-3.5 text-slate-600" />
-            <span>My Schedule</span>
+            <Calendar className="w-3.5 h-3.5 text-slate-600 shrink-0" />
+            <span>{t('nav_my_schedule')}</span>
           </button>
 
           <button
@@ -270,8 +274,8 @@ export function ScheduleFairnessScreen({
             onClick={handleExportTeamIcs}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-800 cursor-pointer whitespace-nowrap shrink-0"
           >
-            <Download className="w-3.5 h-3.5 text-slate-600" />
-            <span>Export .ics</span>
+            <Download className="w-3.5 h-3.5 text-slate-600 shrink-0" />
+            <span>{t('btn_export_ics')}</span>
           </button>
         </div>
       </div>
@@ -280,7 +284,7 @@ export function ScheduleFairnessScreen({
       {isManager && (
         <SurfaceCard className="space-y-3">
           <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
-            Manager Fairness Automation
+            {t('win_manager_fairness_automation')}
           </div>
           <div className="flex flex-wrap items-center gap-2.5">
             <button
@@ -289,9 +293,9 @@ export function ScheduleFairnessScreen({
               onClick={handleGenerateWeek}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 disabled:opacity-60 text-white text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0"
             >
-              <Sparkles className="w-3.5 h-3.5" />
+              <Sparkles className="w-3.5 h-3.5 shrink-0" />
               <span>
-                {busyAction === 'generate' ? 'Generating...' : 'Generate Week'}
+                {busyAction === 'generate' ? t('win_generating') : t('btn_generate_week')}
               </span>
             </button>
 
@@ -301,11 +305,11 @@ export function ScheduleFairnessScreen({
               onClick={handleArrangeOverlaps}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 disabled:opacity-60 text-white text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0"
             >
-              <Sparkles className="w-3.5 h-3.5" />
+              <Sparkles className="w-3.5 h-3.5 shrink-0" />
               <span>
                 {busyAction === 'arrange'
-                  ? 'Arranging...'
-                  : `Arrange Overlaps (${conflictCount})`}
+                  ? t('win_arranging')
+                  : t('btn_arrange_overlaps_count', conflictCount)}
               </span>
             </button>
 
@@ -315,11 +319,11 @@ export function ScheduleFairnessScreen({
               onClick={handleAssignOpen}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0"
             >
-              <UserCheck className="w-3.5 h-3.5" />
+              <UserCheck className="w-3.5 h-3.5 shrink-0" />
               <span>
                 {busyAction === 'open'
-                  ? 'Assigning...'
-                  : `Assign Open (${openCount})`}
+                  ? t('win_assigning')
+                  : t('btn_assign_open_count', openCount)}
               </span>
             </button>
 
@@ -328,8 +332,8 @@ export function ScheduleFairnessScreen({
               onClick={() => onOpenAddShift(todayIso)}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-800 cursor-pointer whitespace-nowrap shrink-0"
             >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Add Shift</span>
+              <Plus className="w-3.5 h-3.5 shrink-0" />
+              <span>{t('btn_add_shift')}</span>
             </button>
 
             <button
@@ -337,8 +341,8 @@ export function ScheduleFairnessScreen({
               onClick={onOpenWeekSlots}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-800 cursor-pointer whitespace-nowrap shrink-0"
             >
-              <Settings2 className="w-3.5 h-3.5" />
-              <span>Week Slots</span>
+              <Settings2 className="w-3.5 h-3.5 shrink-0" />
+              <span>{t('btn_week_slots')}</span>
             </button>
           </div>
         </SurfaceCard>
@@ -349,9 +353,12 @@ export function ScheduleFairnessScreen({
         <div className="inline-flex items-center gap-1 max-w-full overflow-x-auto cadence-scroll bg-white border border-slate-200 rounded-lg p-1">
           {(
             [
-              ['calendar', 'Calendar'],
-              ['table', 'Shift Table'],
-              ['submissions', `Submissions (${activeSubmissions.length})`],
+              ['calendar', t('subtab_calendar')],
+              ['table', t('subtab_shift_table')],
+              [
+                'submissions',
+                t('filter_count_format', t('subtab_submissions'), activeSubmissions.length),
+              ],
             ] as const
           ).map(([key, label]) => (
             <button
@@ -371,38 +378,38 @@ export function ScheduleFairnessScreen({
 
         {subTab === 'calendar' && (
           <div className="flex flex-wrap items-center gap-2">
-            <label className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 cursor-pointer">
+            <label className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 cursor-pointer whitespace-nowrap">
               <input
                 type="checkbox"
                 checked={myShiftsOnly}
                 onChange={(e) => setMyShiftsOnly(e.target.checked)}
                 className="w-3.5 h-3.5 accent-blue-600 cursor-pointer"
               />
-              <span>My Shifts Only</span>
+              <span>{t('win_my_shifts_only')}</span>
             </label>
 
             <div className="inline-flex items-center bg-white border border-slate-200 rounded-lg p-0.5">
               <button
                 type="button"
                 onClick={() => setCalendarMode('week')}
-                className={`px-2.5 py-1 rounded-md text-xs font-semibold cursor-pointer ${
+                className={`px-2.5 py-1 rounded-md text-xs font-semibold cursor-pointer whitespace-nowrap ${
                   calendarMode === 'week'
                     ? 'bg-slate-900 text-white'
                     : 'text-slate-600'
                 }`}
               >
-                Week
+                {t('week_label')}
               </button>
               <button
                 type="button"
                 onClick={() => setCalendarMode('month')}
-                className={`px-2.5 py-1 rounded-md text-xs font-semibold cursor-pointer ${
+                className={`px-2.5 py-1 rounded-md text-xs font-semibold cursor-pointer whitespace-nowrap ${
                   calendarMode === 'month'
                     ? 'bg-slate-900 text-white'
                     : 'text-slate-600'
                 }`}
               >
-                Month
+                {t('month_label')}
               </button>
             </div>
 
@@ -410,7 +417,7 @@ export function ScheduleFairnessScreen({
               <button
                 type="button"
                 onClick={() => handleStepCalendar(-1)}
-                aria-label="Previous period"
+                aria-label={t('cd_previous_period')}
                 className="p-1.5 rounded-md hover:bg-slate-100 text-slate-700 cursor-pointer"
               >
                 <ChevronLeft className="w-4 h-4" />
@@ -418,14 +425,14 @@ export function ScheduleFairnessScreen({
               <button
                 type="button"
                 onClick={() => setAnchorDate(getMondayIso())}
-                className="px-2.5 py-1 rounded-md hover:bg-slate-100 text-xs font-semibold text-slate-800 cursor-pointer"
+                className="px-2.5 py-1 rounded-md hover:bg-slate-100 text-xs font-semibold text-slate-800 cursor-pointer whitespace-nowrap"
               >
-                Today
+                {t('today_label')}
               </button>
               <button
                 type="button"
                 onClick={() => handleStepCalendar(1)}
-                aria-label="Next period"
+                aria-label={t('cd_next_period')}
                 className="p-1.5 rounded-md hover:bg-slate-100 text-slate-700 cursor-pointer"
               >
                 <ChevronRight className="w-4 h-4" />
@@ -443,10 +450,10 @@ export function ScheduleFairnessScreen({
               (s) => s.date === dayIso,
             );
             const dateObj = new Date(`${dayIso}T12:00:00`);
-            const weekday = new Intl.DateTimeFormat(undefined, {
+            const weekday = new Intl.DateTimeFormat(bcp47Tag || undefined, {
               weekday: 'short',
             }).format(dateObj);
-            const dateShort = new Intl.DateTimeFormat(undefined, {
+            const dateShort = new Intl.DateTimeFormat(bcp47Tag || undefined, {
               month: 'short',
               day: 'numeric',
             }).format(dateObj);
@@ -476,7 +483,7 @@ export function ScheduleFairnessScreen({
                     <button
                       type="button"
                       onClick={() => onOpenAddShift(dayIso)}
-                      aria-label={`Add shift on ${dayIso}`}
+                      aria-label={`${t('btn_add_shift')} ${dayIso}`}
                       className="p-1 rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 cursor-pointer"
                     >
                       <Plus className="w-3.5 h-3.5" />
@@ -486,7 +493,7 @@ export function ScheduleFairnessScreen({
 
                 {dayShifts.length === 0 ? (
                   <div className="text-[11px] text-slate-400 py-4 text-center">
-                    No shifts
+                    {t('win_no_shifts')}
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -504,7 +511,7 @@ export function ScheduleFairnessScreen({
                           {shift.startTime}–{shift.endTime}
                         </div>
                         <div className="text-[11px] text-slate-600 truncate">
-                          {shift.assignedName.trim() || 'Open Slot'}
+                          {shift.assignedName.trim() || t('win_open_slot')}
                         </div>
                         <ShiftStatusChip status={shift.status} />
                       </button>
@@ -521,8 +528,8 @@ export function ScheduleFairnessScreen({
         <div className="bg-white border border-slate-200 rounded-xl overflow-x-auto cadence-scroll">
           <div className="min-w-[680px]">
             <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase text-slate-500">
-              {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
-                <div key={d} className="px-2.5 @3xl:px-3 py-2">
+              {monthHeaderDays.map((d, idx) => (
+                <div key={idx} className="px-2.5 @3xl:px-3 py-2">
                   {d}
                 </div>
               ))}
@@ -557,7 +564,7 @@ export function ScheduleFairnessScreen({
                         <button
                           type="button"
                           onClick={() => onOpenAddShift(iso)}
-                          aria-label={`Add shift on ${iso}`}
+                          aria-label={`${t('btn_add_shift')} ${iso}`}
                           className="text-slate-400 hover:text-blue-600 cursor-pointer"
                         >
                           <Plus className="w-3 h-3" />
@@ -575,12 +582,12 @@ export function ScheduleFairnessScreen({
                           <span className="font-mono-tabular font-semibold">
                             {shift.startTime}
                           </span>{' '}
-                          {shift.assignedName.trim() || 'Open'}
+                          {shift.assignedName.trim() || t('win_open_short')}
                         </button>
                       ))}
                       {dayShifts.length > 3 && (
                         <div className="text-[10px] font-semibold text-slate-500 px-1">
-                          +{dayShifts.length - 3} more
+                          {t('win_more_format', dayShifts.length - 3)}
                         </div>
                       )}
                     </div>
@@ -599,11 +606,14 @@ export function ScheduleFairnessScreen({
             <div className="inline-flex items-center gap-1 max-w-full overflow-x-auto cadence-scroll bg-white border border-slate-200 rounded-lg p-1">
               {(
                 [
-                  ['all', 'All'],
-                  ['mine', 'Mine'],
-                  ['open', `Open (${openCount})`],
-                  ['overlaps', `Overlaps (${conflictCount})`],
-                  ['completed', 'Completed'],
+                  ['all', t('filter_all')],
+                  ['mine', t('filter_mine')],
+                  ['open', t('filter_count_format', t('filter_open'), openCount)],
+                  [
+                    'overlaps',
+                    t('filter_count_format', t('filter_overlaps'), conflictCount),
+                  ],
+                  ['completed', t('status_completed')],
                 ] as const
               ).map(([key, label]) => (
                 <button
@@ -627,7 +637,7 @@ export function ScheduleFairnessScreen({
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search shifts, staff, date..."
+                placeholder={t('search_team_shifts_label')}
                 className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-300 bg-white text-xs text-slate-900"
               />
             </div>
@@ -636,19 +646,19 @@ export function ScheduleFairnessScreen({
           {tableShifts.length === 0 ? (
             <EmptyStatePanel
               icon={<Calendar className="w-5 h-5" />}
-              title="No shifts match your filters"
-              subtitle="Change your table filter or add a new team shift."
+              title={t('empty_shifts_filter_title')}
+              subtitle={t('empty_shifts_filter_subtitle')}
             />
           ) : (
             <div className="bg-white border border-slate-200 rounded-xl overflow-x-auto cadence-scroll">
               <table className="w-full min-w-[620px] text-left border-collapse">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                    <th className="py-3 px-4">Shift</th>
-                    <th className="py-3 px-4">Date &amp; Window</th>
-                    <th className="py-3 px-4">Assignee</th>
-                    <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4 text-right">Action</th>
+                    <th className="py-3 px-4">{t('win_table_shift')}</th>
+                    <th className="py-3 px-4">{t('win_table_date_window')}</th>
+                    <th className="py-3 px-4">{t('win_table_assignee')}</th>
+                    <th className="py-3 px-4">{t('win_table_status')}</th>
+                    <th className="py-3 px-4 text-right">{t('win_table_action')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs">
@@ -676,7 +686,7 @@ export function ScheduleFairnessScreen({
                           {formatHours(shift.durationHours)}h)
                         </td>
                         <td className="py-3 px-4 text-slate-800">
-                          {shift.assignedName.trim() || 'Open / Unassigned'}
+                          {shift.assignedName.trim() || t('open_unassigned')}
                         </td>
                         <td className="py-3 px-4">
                           <ShiftStatusChip status={shift.status} />
@@ -689,19 +699,19 @@ export function ScheduleFairnessScreen({
                             <button
                               type="button"
                               onClick={() => onRequestChangeForShift(shift)}
-                              className="text-xs font-semibold text-blue-600 hover:underline cursor-pointer"
+                              className="text-xs font-semibold text-blue-600 hover:underline cursor-pointer whitespace-nowrap"
                             >
                               {shift.status === ShiftStatus.OPEN
-                                ? 'Claim'
-                                : 'Request Change'}
+                                ? t('win_claim')
+                                : t('btn_request_change')}
                             </button>
                           ) : (
                             <button
                               type="button"
                               onClick={() => onInspectShift(shift)}
-                              className="text-xs font-semibold text-slate-600 hover:underline cursor-pointer"
+                              className="text-xs font-semibold text-slate-600 hover:underline cursor-pointer whitespace-nowrap"
                             >
-                              Inspect
+                              {t('win_inspect')}
                             </button>
                           )}
                         </td>
@@ -721,15 +731,15 @@ export function ScheduleFairnessScreen({
           {activeSubmissions.length === 0 ? (
             <EmptyStatePanel
               icon={<CalendarPlus className="w-5 h-5" />}
-              title="No availability submissions yet"
-              subtitle="Submit your preferred upcoming shift days so the Fairness Engine can assign weekly slots."
+              title={t('empty_submissions_title')}
+              subtitle={t('empty_submissions_subtitle')}
               action={
                 <button
                   type="button"
                   onClick={onOpenSubmitAvailability}
-                  className="px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer"
+                  className="px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0"
                 >
-                  Submit Availability
+                  {t('btn_submit_availability')}
                 </button>
               }
             />
@@ -759,12 +769,12 @@ export function ScheduleFairnessScreen({
                           type="button"
                           onClick={async () => {
                             await onWithdrawSubmission(sub.id);
-                            onShowFeedback('Availability submission withdrawn.');
+                            onShowFeedback(t('vm_banner_availability_withdrawn'));
                           }}
-                          className="inline-flex items-center gap-1 text-xs font-semibold text-rose-700 hover:underline cursor-pointer"
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-rose-700 hover:underline cursor-pointer whitespace-nowrap"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
-                          <span>Withdraw</span>
+                          <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                          <span>{t('btn_withdraw_submission')}</span>
                         </button>
                       </div>
                     )}

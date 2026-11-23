@@ -12,6 +12,7 @@ pub mod diagnostics;
 pub mod fairness;
 pub mod firebase_client;
 pub mod history;
+pub mod i18n;
 pub mod ics;
 pub mod local_store;
 pub mod models;
@@ -37,7 +38,7 @@ use std::fs;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Emitter, State,
+    Emitter, Manager, State,
 };
 use tauri_plugin_dialog::{DialogExt, FilePath};
 use tauri_plugin_notification::NotificationExt;
@@ -493,15 +494,27 @@ pub fn run() {
             let startup_args: Vec<String> = std::env::args().collect();
             let _ = deep_link::handle_cli_args_for_deep_link(app.handle(), &startup_args);
 
-            let show_item = MenuItem::with_id(app, "show", "Open Cadence", true, None::<&str>)?;
+            let store_state = app.state::<LocalStoreState>();
+            let store_path = local_store::resolve_store_file(app.handle());
+            let pref = store_state
+                .load_language_preference(store_path.as_deref())
+                .unwrap_or_else(|| "system".to_string());
+            let resolved_lang = i18n::resolve_effective_language(&pref, None);
+            let tray_copy = i18n::get_tray_locale_strings(&resolved_lang);
+
+            if let Some(main_win) = app.get_webview_window("main") {
+                let _ = main_win.set_title(&tray_copy.window_title);
+            }
+
+            let show_item = MenuItem::with_id(app, "show", &tray_copy.open_cadence, true, None::<&str>)?;
             let update_item =
-                MenuItem::with_id(app, "check_updates", "Check for Updates", true, None::<&str>)?;
-            let quit_item = MenuItem::with_id(app, "quit", "Quit Cadence", true, None::<&str>)?;
+                MenuItem::with_id(app, "check_updates", &tray_copy.check_updates, true, None::<&str>)?;
+            let quit_item = MenuItem::with_id(app, "quit", &tray_copy.quit_cadence, true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show_item, &update_item, &quit_item])?;
 
             let mut tray_builder = TrayIconBuilder::new()
                 .menu(&menu)
-                .tooltip("Cadence — Shift Reporting & Fair Scheduling")
+                .tooltip(&tray_copy.tooltip)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "show" => {
                         deep_link::focus_main_window(app);
@@ -631,6 +644,9 @@ pub fn run() {
             time_off_planner::analyze_time_off_shift_conflicts_cmd,
             time_off_planner::compute_department_absence_calendar_cmd,
             time_off_planner::evaluate_time_off_request_impact_cmd,
+            i18n::get_i18n_bundle_cmd,
+            i18n::save_language_preference_cmd,
+            i18n::get_supported_languages_cmd,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Cadence desktop application");

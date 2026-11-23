@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { formatIsoDate } from './domain/fairnessEngine';
 import { useCadenceWorkspace } from './hooks/useCadenceWorkspace';
+import { useI18n } from './i18n/I18nContext';
 import {
   ApprovalStatus,
   CadenceTab,
@@ -79,6 +80,7 @@ export function App() {
     runUpdateCheck,
     actions,
   } = useCadenceWorkspace();
+  const { t } = useI18n();
 
   const [activeTab, setActiveTab] = useState<CadenceTab>(CadenceTab.OVERVIEW);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -135,55 +137,55 @@ export function App() {
     return [
       {
         id: CadenceTab.OVERVIEW,
-        label: 'Overview',
+        label: t('nav_overview'),
         icon: <LayoutDashboard className="w-4 h-4" />,
       },
       {
         id: CadenceTab.MY_SCHEDULE,
-        label: 'My Schedule',
+        label: t('nav_my_schedule'),
         icon: <CalendarCheck className="w-4 h-4" />,
       },
       {
         id: CadenceTab.SCHEDULE,
-        label: 'Schedule & Fairness',
+        label: t('nav_schedule'),
         icon: <Sparkles className="w-4 h-4" />,
         badge: overlaps > 0 ? overlaps : undefined,
       },
       {
         id: CadenceTab.REPORTS,
-        label: 'Shift Reports',
+        label: t('nav_reports'),
         icon: <ClipboardCheck className="w-4 h-4" />,
       },
       {
         id: CadenceTab.APPROVALS,
-        label: 'Approvals',
+        label: t('nav_approvals'),
         icon: <CheckCircle2 className="w-4 h-4" />,
         badge: pendingChanges > 0 ? pendingChanges : undefined,
       },
       {
         id: CadenceTab.HISTORY,
-        label: 'Shift History',
+        label: t('nav_history'),
         icon: <History className="w-4 h-4" />,
       },
       {
         id: CadenceTab.TEAM,
-        label: 'Team Hours',
+        label: t('nav_team'),
         icon: <Users className="w-4 h-4" />,
       },
       {
         id: CadenceTab.TIME_OFF,
-        label: 'Time Off',
+        label: t('nav_timeoff'),
         icon: <CalendarOff className="w-4 h-4" />,
         badge: pendingTimeOff > 0 ? pendingTimeOff : undefined,
       },
       {
         id: CadenceTab.NOTIFICATIONS,
-        label: 'Notifications',
+        label: t('nav_alerts'),
         icon: <Bell className="w-4 h-4" />,
         badge: unreadNotifs > 0 ? unreadNotifs : undefined,
       },
     ];
-  }, [data]);
+  }, [data, t]);
 
   if (!authReady) {
     return <LoadingScreen stage="initializing" appVersion={appVersion} />;
@@ -216,7 +218,7 @@ export function App() {
             <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
             <div>
               <h2 className="text-base font-bold text-slate-900">
-                Unable to load workspace profile
+                {t('win_profile_load_error')}
               </h2>
               <p className="text-xs text-slate-600 mt-1">
                 {profileState.message}
@@ -227,16 +229,16 @@ export function App() {
             <button
               type="button"
               onClick={refreshVerifiedUser}
-              className="px-4 py-2 rounded-lg bg-blue-600 text-white text-xs font-semibold cursor-pointer"
+              className="px-4 py-2 rounded-lg bg-blue-600 text-white text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0"
             >
-              Retry
+              {t('retry')}
             </button>
             <button
               type="button"
               onClick={() => actions.signOut()}
-              className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 text-xs font-semibold cursor-pointer"
+              className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0"
             >
-              Sign Out
+              {t('sign_out')}
             </button>
           </div>
         </div>
@@ -267,16 +269,16 @@ export function App() {
         <div className={`flex items-center ${compact ? '' : 'gap-2.5 min-w-0'}`}>
           <img
             src="/cadence-icon.png"
-            alt="Cadence logo"
+            alt={t('app_name')}
             className="w-8 h-8 rounded-lg border border-slate-200 object-cover shrink-0"
           />
           {!compact && (
             <div className="min-w-0">
               <div className="text-sm font-bold text-slate-900 truncate">
-                Cadence
+                {t('app_name')}
               </div>
               <div className="text-[11px] font-mono-tabular text-slate-500">
-                v{appVersion} · Windows
+                v{appVersion} · {t('win_windows')}
               </div>
             </div>
           )}
@@ -287,7 +289,7 @@ export function App() {
             type="button"
             onClick={() => setMobileNavOpen(false)}
             className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
-            aria-label="Close navigation"
+            aria-label={t('win_close_nav')}
           >
             <X className="w-4 h-4" />
           </button>
@@ -296,8 +298,8 @@ export function App() {
             <button
               type="button"
               onClick={toggleSidebarCollapsed}
-              title="Collapse sidebar for more workspace width"
-              aria-label="Collapse sidebar"
+              title={t('win_collapse_sidebar')}
+              aria-label={t('win_collapse_sidebar')}
               className="hidden lg:inline-flex p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
             >
               <PanelLeftClose className="w-4 h-4" />
@@ -311,8 +313,8 @@ export function App() {
           <button
             type="button"
             onClick={toggleSidebarCollapsed}
-            title="Expand sidebar"
-            aria-label="Expand sidebar"
+            title={t('win_expand_sidebar')}
+            aria-label={t('win_expand_sidebar')}
             className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
           >
             <PanelLeftOpen className="w-4 h-4" />
@@ -376,8 +378,8 @@ export function App() {
             <button
               type="button"
               onClick={() => setUpdateDialogOpen(true)}
-              title={`Update v${updateResult.latest.versionName}`}
-              aria-label={`Update v${updateResult.latest.versionName}`}
+              title={t('win_update_badge_format', updateResult.latest.versionName)}
+              aria-label={t('win_update_badge_format', updateResult.latest.versionName)}
               className="w-full flex items-center justify-center p-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 cursor-pointer"
             >
               <Download className="w-4 h-4" />
@@ -391,10 +393,10 @@ export function App() {
               <span className="flex items-center gap-1.5 truncate">
                 <Download className="w-3.5 h-3.5 shrink-0" />
                 <span className="truncate">
-                  Update v{updateResult.latest.versionName}
+                  {t('win_update_badge_format', updateResult.latest.versionName)}
                 </span>
               </span>
-              <span>View</span>
+              <span className="whitespace-nowrap shrink-0">{t('win_view')}</span>
             </button>
           ))}
 
@@ -405,7 +407,7 @@ export function App() {
                 {data.profile.displayName}
               </div>
               <StatusChip
-                label={isManager ? 'Manager' : 'Staff'}
+                label={isManager ? t('role_manager') : t('role_staff')}
                 tone={isManager ? 'violet' : 'neutral'}
               />
             </div>
@@ -419,22 +421,22 @@ export function App() {
           <button
             type="button"
             onClick={() => setSettingsOpen(true)}
-            title={compact ? 'Settings' : undefined}
-            aria-label="Settings"
-            className="w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer"
+            title={compact ? t('win_settings') : undefined}
+            aria-label={t('win_settings')}
+            className="w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer whitespace-nowrap"
           >
             <Settings className="w-3.5 h-3.5 shrink-0" />
-            {!compact && <span>Settings</span>}
+            {!compact && <span className="truncate">{t('win_settings')}</span>}
           </button>
           <button
             type="button"
             onClick={() => actions.signOut()}
-            title={compact ? 'Sign Out' : undefined}
-            aria-label="Sign Out"
-            className="w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-rose-50 hover:text-rose-700 text-xs font-semibold text-slate-700 cursor-pointer"
+            title={compact ? t('sign_out') : undefined}
+            aria-label={t('sign_out')}
+            className="w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-rose-50 hover:text-rose-700 text-xs font-semibold text-slate-700 cursor-pointer whitespace-nowrap"
           >
             <LogOut className="w-3.5 h-3.5 shrink-0" />
-            {!compact && <span>Sign Out</span>}
+            {!compact && <span className="truncate">{t('sign_out')}</span>}
           </button>
         </div>
       </div>
@@ -480,21 +482,21 @@ export function App() {
             type="button"
             onClick={() => setMobileNavOpen(true)}
             className="p-1.5 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 cursor-pointer shrink-0"
-            aria-label="Open navigation"
+            aria-label={t('win_open_nav')}
           >
             <Menu className="w-4 h-4" />
           </button>
           <div className="flex items-center gap-2 min-w-0">
             <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
             <span className="text-sm font-bold text-slate-900 truncate">
-              {navItems.find((i) => i.id === activeTab)?.label ?? 'Cadence'}
+              {navItems.find((i) => i.id === activeTab)?.label ?? t('app_name')}
             </span>
           </div>
           <button
             type="button"
             onClick={() => setSettingsOpen(true)}
             className="p-1.5 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 cursor-pointer shrink-0"
-            aria-label="Open settings"
+            aria-label={t('win_settings')}
           >
             <Settings className="w-4 h-4" />
           </button>
@@ -517,9 +519,9 @@ export function App() {
               <button
                 type="button"
                 onClick={() => showFeedback('')}
-                className="text-emerald-700 hover:text-emerald-950 font-semibold cursor-pointer"
+                className="text-emerald-700 hover:text-emerald-950 font-semibold cursor-pointer whitespace-nowrap shrink-0"
               >
-                Dismiss
+                {t('win_dismiss')}
               </button>
             </div>
           )}
@@ -637,7 +639,7 @@ export function App() {
             setSettingsOpen(false);
             setUpdateDialogOpen(true);
           } else {
-            showFeedback(`Cadence v${appVersion} is up to date.`);
+            showFeedback(t('win_up_to_date_banner', appVersion));
           }
         }}
         onOpenUpdateDialog={() => setUpdateDialogOpen(true)}

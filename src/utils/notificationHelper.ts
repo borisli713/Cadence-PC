@@ -13,6 +13,7 @@ import {
   invokeNativeNotification,
   isTauriDesktop,
 } from './tauriBridge';
+import { translateStatic } from '../i18n/I18nContext';
 
 const STORAGE_KEY_NOTIFIED_IDS = 'cadence_notified_ids_v1';
 const STORAGE_KEY_MGR_KEYS = 'cadence_notified_mgr_keys_v1';
@@ -127,10 +128,17 @@ export function buildManagerWorkPayloads(
 
   for (const req of scheduleChanges) {
     if (req.status === ApprovalStatus.PENDING && req.requesterUid !== managerUid) {
+      const changeLabel = translateStatic(`change_type_${req.type}`);
       payloads.push({
         key: `chg_${req.id}`,
-        title: `New ${req.type.replace('_', ' ')} request`,
-        message: `${req.requesterName} requested ${req.type.replace('_', ' ')} for ${req.shiftTitle} (${req.proposedDate}).`,
+        title: translateStatic('notif_mgr_shift_req_title'),
+        message: translateStatic(
+          'notif_mgr_shift_req_body',
+          req.requesterName,
+          changeLabel,
+          req.shiftTitle,
+          req.proposedDate,
+        ),
       });
     }
   }
@@ -139,8 +147,13 @@ export function buildManagerWorkPayloads(
     if (to.status === ApprovalStatus.PENDING && to.staffUid !== managerUid) {
       payloads.push({
         key: `to_${to.id}`,
-        title: 'New Time Off Request',
-        message: `${to.staffName} requested time off (${to.startDate} to ${to.endDate}).`,
+        title: translateStatic('notif_mgr_time_off_title'),
+        message: translateStatic(
+          'notif_mgr_time_off_body',
+          to.staffName,
+          to.startDate,
+          to.endDate,
+        ),
       });
     }
   }
@@ -149,8 +162,14 @@ export function buildManagerWorkPayloads(
     if (rep.status === ShiftReportStatus.SUBMITTED && rep.staffUid !== managerUid) {
       payloads.push({
         key: `rep_${rep.id}`,
-        title: 'Shift Report Submitted',
-        message: `${rep.staffName} logged ${formatHours(rep.workedHours)}h for ${rep.shiftTitle} (${rep.date}).`,
+        title: translateStatic('notif_mgr_report_title'),
+        message: translateStatic(
+          'notif_mgr_report_body',
+          rep.staffName,
+          formatHours(rep.workedHours),
+          rep.shiftTitle,
+          rep.date,
+        ),
       });
     }
   }

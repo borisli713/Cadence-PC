@@ -2,16 +2,12 @@ import React, { useEffect } from 'react';
 import { X } from 'lucide-react';
 import {
   ApprovalStatus,
-  SHIFT_REPORT_STATUS_LABEL,
-  SHIFT_STATUS_LABEL,
   ShiftReportStatus,
   ShiftStatus,
-  APPROVAL_STATUS_LABEL,
-  SUBMISSION_STATUS_LABEL,
   SubmissionStatus,
-  NOTIFICATION_CATEGORY_LABEL,
   NotificationCategory,
 } from '../types/cadence';
+import { useI18n } from '../i18n/I18nContext';
 
 export type StatusTone =
   | 'info'
@@ -62,38 +58,42 @@ function shiftStatusTone(status: ShiftStatus): StatusTone {
 }
 
 export function ShiftStatusChip({ status }: { status: ShiftStatus }) {
+  const { t } = useI18n();
   return (
     <StatusChip
-      label={SHIFT_STATUS_LABEL[status]}
+      label={t(`status_${status}`)}
       tone={shiftStatusTone(status)}
     />
   );
 }
 
 export function ApprovalStatusChip({ status }: { status: ApprovalStatus }) {
+  const { t } = useI18n();
   const tone: StatusTone =
     status === ApprovalStatus.APPROVED
       ? 'success'
       : status === ApprovalStatus.DENIED
         ? 'danger'
         : 'warning';
-  return <StatusChip label={APPROVAL_STATUS_LABEL[status]} tone={tone} />;
+  return <StatusChip label={t(`approval_${status}`)} tone={tone} />;
 }
 
 export function ReportStatusChip({ status }: { status: ShiftReportStatus }) {
+  const { t } = useI18n();
   const tone: StatusTone =
     status === ShiftReportStatus.VERIFIED
       ? 'success'
       : status === ShiftReportStatus.FLAGGED
         ? 'danger'
         : 'info';
-  return <StatusChip label={SHIFT_REPORT_STATUS_LABEL[status]} tone={tone} />;
+  return <StatusChip label={t(`report_status_${status}`)} tone={tone} />;
 }
 
 export function SubmissionStatusChip({ status }: { status: SubmissionStatus }) {
+  const { t } = useI18n();
   return (
     <StatusChip
-      label={SUBMISSION_STATUS_LABEL[status]}
+      label={t(`sub_status_${status}`)}
       tone={status === SubmissionStatus.SUBMITTED ? 'info' : 'neutral'}
     />
   );
@@ -104,6 +104,7 @@ export function NotificationCategoryChip({
 }: {
   category: NotificationCategory;
 }) {
+  const { t } = useI18n();
   const tone: StatusTone =
     category === NotificationCategory.SHIFT_APPROVED ||
     category === NotificationCategory.REPORT_VERIFIED ||
@@ -116,7 +117,7 @@ export function NotificationCategoryChip({
           ? 'violet'
           : 'info';
   return (
-    <StatusChip label={NOTIFICATION_CATEGORY_LABEL[category]} tone={tone} />
+    <StatusChip label={t(`notif_cat_${category}`)} tone={tone} />
   );
 }
 
@@ -229,6 +230,7 @@ export function ModalShell({
   children: React.ReactNode;
   footer?: React.ReactNode;
 }) {
+  const { t } = useI18n();
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (e: KeyboardEvent) => {
@@ -266,7 +268,7 @@ export function ModalShell({
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close modal"
+            aria-label={t('close')}
             className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
           >
             <X className="w-4 h-4" />

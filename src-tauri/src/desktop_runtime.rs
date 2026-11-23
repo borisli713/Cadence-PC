@@ -24,7 +24,7 @@ pub fn build_desktop_runtime_info(cached_workspace_docs: usize) -> Result<Deskto
         project_id: cfg.project_id,
         firestore_database_id: cfg.firestore_database_id,
         sync_engine: "rust-firestore-rest-commit+live-streams".to_string(),
-        rust_modules_count: 36,
+        rust_modules_count: 37,
         cached_workspace_docs,
     })
 }

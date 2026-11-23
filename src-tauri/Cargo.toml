@@ -1,6 +1,6 @@
 [package]
 name = "cadence"
-version = "1.0.0"
+version = "1.1.0"
 description = "Verified shift reporting system with manager schedule change approvals, one-click Accept All, native desktop notifications, and fairness-based overlap arrangement."
 authors = ["Cadence Contributors"]
 license = "MIT"

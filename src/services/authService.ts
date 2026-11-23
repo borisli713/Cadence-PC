@@ -10,6 +10,7 @@ import {
   updateProfile,
   type User,
 } from 'firebase/auth';
+import { translateStatic } from '../i18n/I18nContext';
 import { auth } from '../firebase';
 import {
   invokeCancelExternalGoogleLogin,
@@ -26,27 +27,27 @@ export function mapAuthError(err: unknown): string {
 
   switch (code) {
     case 'auth/invalid-email':
-      return 'Enter a valid email address.';
+      return translateStatic('auth_fb_invalid_email');
     case 'auth/user-disabled':
-      return 'This account has been disabled.';
+      return translateStatic('auth_fb_user_disabled');
     case 'auth/user-not-found':
     case 'auth/wrong-password':
     case 'auth/invalid-credential':
-      return 'Invalid email or password.';
+      return translateStatic('auth_fb_invalid_credential');
     case 'auth/email-already-in-use':
-      return 'An account already exists for that email address.';
+      return translateStatic('auth_fb_email_in_use');
     case 'auth/weak-password':
-      return 'Password must be at least 6 characters.';
+      return translateStatic('auth_fb_weak_password');
     case 'auth/too-many-requests':
-      return 'Too many attempts. Please wait a moment and try again.';
+      return translateStatic('auth_fb_too_many_requests');
     case 'auth/popup-closed-by-user':
-      return 'Google sign-in popup was closed before completing.';
+      return translateStatic('win_auth_popup_closed');
     case 'auth/popup-blocked':
-      return 'Popup was blocked. Please allow popups or sign in with email & password.';
+      return translateStatic('win_auth_popup_blocked');
     case 'auth/network-request-failed':
-      return 'Network error while connecting to authentication service.';
+      return translateStatic('auth_fb_network');
     default:
-      return msg || 'Authentication failed. Please try again.';
+      return msg || translateStatic('win_auth_generic_fail');
   }
 }
 
@@ -55,8 +56,8 @@ export async function signInWithEmail(
   password: string,
 ): Promise<User> {
   const cleanEmail = email.trim();
-  if (!cleanEmail) throw new Error('Enter your email address.');
-  if (!password) throw new Error('Enter your password.');
+  if (!cleanEmail) throw new Error(translateStatic('auth_err_invalid_email'));
+  if (!password) throw new Error(translateStatic('auth_err_enter_password'));
   try {
     const cred = await signInWithEmailAndPassword(auth, cleanEmail, password);
     return cred.user;
@@ -72,10 +73,10 @@ export async function signUpWithEmail(
 ): Promise<{ user: User; sentVerification: boolean }> {
   const cleanName = fullName.trim();
   const cleanEmail = email.trim();
-  if (!cleanName) throw new Error('Enter your full name.');
-  if (!cleanEmail) throw new Error('Enter your email address.');
+  if (!cleanName) throw new Error(translateStatic('auth_err_enter_full_name'));
+  if (!cleanEmail) throw new Error(translateStatic('auth_err_invalid_email'));
   if (password.length < 6) {
-    throw new Error('Password must be at least 6 characters.');
+    throw new Error(translateStatic('auth_err_password_min_6'));
   }
 
   try {
@@ -132,7 +133,7 @@ export async function signInWithGoogle(): Promise<User> {
 
 export async function sendPasswordReset(email: string): Promise<void> {
   const cleanEmail = email.trim();
-  if (!cleanEmail) throw new Error('Enter your email address first.');
+  if (!cleanEmail) throw new Error(translateStatic('auth_err_enter_reset_email'));
   try {
     await sendPasswordResetEmail(auth, cleanEmail);
   } catch (err) {
@@ -142,7 +143,7 @@ export async function sendPasswordReset(email: string): Promise<void> {
 
 export async function resendVerificationEmail(): Promise<void> {
   const user = auth.currentUser;
-  if (!user) throw new Error('No active user session found.');
+  if (!user) throw new Error(translateStatic('auth_err_no_user_session'));
   try {
     await sendEmailVerification(user);
   } catch (err) {

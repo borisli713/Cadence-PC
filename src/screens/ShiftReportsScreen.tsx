@@ -21,6 +21,7 @@ import {
   WorkspaceUiData,
 } from '../types/cadence';
 import { invokeSaveReportsCsv } from '../utils/tauriBridge';
+import { useI18n } from '../i18n/I18nContext';
 import {
   EmptyStatePanel,
   ModalShell,
@@ -61,6 +62,7 @@ export function ShiftReportsScreen({
   onVerifyOrFlag,
   onShowFeedback,
 }: ShiftReportsScreenProps) {
+  const { t } = useI18n();
   const isManager = data.profile.role === UserRole.MANAGER;
   const [filter, setFilter] = useState<ReportFilter>('all');
   const [modalOpen, setModalOpen] = useState(false);
@@ -72,7 +74,7 @@ export function ShiftReportsScreen({
   );
 
   const [linkedShiftId, setLinkedShiftId] = useState('');
-  const [title, setTitle] = useState('Operations Shift');
+  const [title, setTitle] = useState(() => t('default_shift_morning'));
   const [department, setDepartment] = useState(data.profile.department);
   const [date, setDate] = useState(formatIsoDate(new Date()));
   const [startTime, setStartTime] = useState('09:00');
@@ -93,7 +95,7 @@ export function ShiftReportsScreen({
         setEndTime(prelinkedShift.endTime);
       } else {
         setLinkedShiftId('');
-        setTitle('Operations Shift');
+        setTitle(t('default_shift_morning'));
         setDepartment(data.profile.department);
         setDate(formatIsoDate(new Date()));
         setStartTime('09:00');
@@ -110,6 +112,7 @@ export function ShiftReportsScreen({
     prelinkedShift,
     data.profile.department,
     onConsumedInitialModal,
+    t,
   ]);
 
   const handleLinkShiftChange = (id: string) => {
@@ -147,11 +150,11 @@ export function ShiftReportsScreen({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!DATE_PATTERN.test(date) || !TIME_PATTERN.test(startTime) || !TIME_PATTERN.test(endTime)) {
-      setErrorMsg('Enter valid date (YYYY-MM-DD) and clock in/out times.');
+      setErrorMsg(t('win_err_report_datetime'));
       return;
     }
     if (!title.trim()) {
-      setErrorMsg('Enter a shift title.');
+      setErrorMsg(t('win_err_enter_shift_title'));
       return;
     }
 
@@ -161,7 +164,7 @@ export function ShiftReportsScreen({
       await onSubmitReport({
         shiftId: linkedShiftId,
         shiftTitle: title.trim(),
-        department: department.trim() || 'Operations',
+        department: department.trim() || t('default_dept_operations'),
         date,
         actualStartTime: startTime,
         actualEndTime: endTime,
@@ -169,7 +172,7 @@ export function ShiftReportsScreen({
         handoffNotes: handoffNotes.trim(),
       });
       setModalOpen(false);
-      onShowFeedback('Shift report submitted for verification.');
+      onShowFeedback(t('vm_banner_report_submitted'));
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : String(err));
     } finally {
@@ -181,9 +184,11 @@ export function ShiftReportsScreen({
     <div className="space-y-5 @xl:space-y-6">
       <div className="flex flex-col @3xl:flex-row @3xl:items-start @3xl:justify-between gap-3 @xl:gap-4">
         <div className="min-w-0">
-          <h1 className="text-xl @xl:text-2xl font-bold text-slate-900">Shift Reports</h1>
+          <h1 className="text-xl @xl:text-2xl font-bold text-slate-900">
+            {t('shift_reports_title')}
+          </h1>
           <p className="text-xs @xl:text-sm text-slate-500 mt-1">
-            Verified clock-in/out logs, break deductions, and manager verification
+            {t('shift_reports_subtitle')}
           </p>
         </div>
 
@@ -194,7 +199,7 @@ export function ShiftReportsScreen({
               onClick={async () => {
                 const savedPath = await invokeSaveReportsCsv(filteredReports);
                 if (typeof savedPath === 'string') {
-                  onShowFeedback(`Saved CSV report to ${savedPath}`);
+                  onShowFeedback(t('win_saved_csv_format', savedPath));
                 } else if (savedPath === undefined) {
                   const csv = [
                     'Date,Staff,Department,Shift,Start,End,BreakMin,WorkedHours,Status',
@@ -221,20 +226,20 @@ export function ShiftReportsScreen({
                   a.click();
                   document.body.removeChild(a);
                   URL.revokeObjectURL(url);
-                  onShowFeedback('Exported shift reports CSV.');
+                  onShowFeedback(t('win_exported_csv_notice'));
                 }
               }}
               className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0"
             >
-              <Download className="w-4 h-4 text-slate-600" />
-              <span>Export CSV</span>
+              <Download className="w-4 h-4 text-slate-600 shrink-0" />
+              <span>{t('win_export_csv')}</span>
             </button>
           )}
           <button
             type="button"
             onClick={() => {
               setLinkedShiftId('');
-              setTitle('Operations Shift');
+              setTitle(t('default_shift_morning'));
               setDepartment(data.profile.department);
               setDate(formatIsoDate(new Date()));
               setStartTime('09:00');
@@ -246,8 +251,8 @@ export function ShiftReportsScreen({
             }}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0"
           >
-            <Plus className="w-4 h-4" />
-            <span>Log Shift Report</span>
+            <Plus className="w-4 h-4 shrink-0" />
+            <span>{t('btn_log_report_short')}</span>
           </button>
         </div>
       </div>
@@ -256,10 +261,10 @@ export function ShiftReportsScreen({
       <div className="inline-flex items-center gap-1 max-w-full overflow-x-auto cadence-scroll bg-white border border-slate-200 rounded-lg p-1">
         {(
           [
-            ['all', `All (${data.shiftReports.length})`],
-            [ShiftReportStatus.SUBMITTED, 'Submitted'],
-            [ShiftReportStatus.VERIFIED, 'Verified'],
-            [ShiftReportStatus.FLAGGED, 'Flagged'],
+            ['all', t('win_all_count_format', data.shiftReports.length)],
+            [ShiftReportStatus.SUBMITTED, t('report_status_submitted')],
+            [ShiftReportStatus.VERIFIED, t('report_status_verified')],
+            [ShiftReportStatus.FLAGGED, t('report_status_flagged')],
           ] as const
         ).map(([key, label]) => (
           <button
@@ -280,8 +285,8 @@ export function ShiftReportsScreen({
       {filteredReports.length === 0 ? (
         <EmptyStatePanel
           icon={<ClipboardCheck className="w-5 h-5" />}
-          title="No shift reports in this view"
-          subtitle="Click Log Shift Report to submit actual worked hours and handoff notes."
+          title={t('empty_reports_title')}
+          subtitle={t('empty_reports_subtitle')}
         />
       ) : (
         <div className="grid grid-cols-1 @2xl:grid-cols-2 @6xl:grid-cols-3 gap-4">
@@ -301,21 +306,21 @@ export function ShiftReportsScreen({
 
               <div className="grid grid-cols-3 gap-2 p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs">
                 <div>
-                  <div className="text-[11px] text-slate-500">Date</div>
+                  <div className="text-[11px] text-slate-500">{t('win_date_col')}</div>
                   <div className="font-mono-tabular font-semibold text-slate-900">
                     {rep.date}
                   </div>
                 </div>
                 <div>
-                  <div className="text-[11px] text-slate-500">Clock</div>
+                  <div className="text-[11px] text-slate-500">{t('win_clock_col')}</div>
                   <div className="font-mono-tabular font-semibold text-slate-900">
                     {rep.actualStartTime}–{rep.actualEndTime}
                   </div>
                 </div>
                 <div>
-                  <div className="text-[11px] text-slate-500">Net Worked</div>
+                  <div className="text-[11px] text-slate-500">{t('win_net_worked_col')}</div>
                   <div className="font-mono-tabular font-semibold text-emerald-700">
-                    {formatHours(rep.workedHours)}h ({rep.breakMinutes}m brk)
+                    {formatHours(rep.workedHours)}h ({t('win_break_short_format', rep.breakMinutes)})
                   </div>
                 </div>
               </div>
@@ -333,26 +338,30 @@ export function ShiftReportsScreen({
                     onClick={async () => {
                       await onVerifyOrFlag(rep, ShiftReportStatus.VERIFIED);
                       onShowFeedback(
-                        `Verified +${formatHours(rep.workedHours)}h for ${rep.staffName}.`,
+                        t(
+                          'vm_banner_report_verified',
+                          rep.staffName,
+                          formatHours(rep.workedHours),
+                        ),
                       );
                     }}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0"
                   >
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>Verify (+{formatHours(rep.workedHours)}h)</span>
+                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                    <span>{t('btn_verify_hours_format', formatHours(rep.workedHours))}</span>
                   </button>
                   <button
                     type="button"
                     onClick={async () => {
                       await onVerifyOrFlag(rep, ShiftReportStatus.FLAGGED);
                       onShowFeedback(
-                        `Flagged shift report for ${rep.staffName}.`,
+                        t('vm_banner_report_flagged', rep.staffName),
                       );
                     }}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0"
                   >
-                    <Flag className="w-3.5 h-3.5" />
-                    <span>Flag</span>
+                    <Flag className="w-3.5 h-3.5 shrink-0" />
+                    <span>{t('btn_flag')}</span>
                   </button>
                 </div>
               )}
@@ -365,24 +374,24 @@ export function ShiftReportsScreen({
       <ModalShell
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        title="Log Verified Shift Report"
-        subtitle="Record actual clock-in/out times, break minutes, and handoff notes"
+        title={t('dialog_log_report')}
+        subtitle={t('shift_reports_subtitle')}
         footer={
           <>
             <button
               type="button"
               onClick={() => setModalOpen(false)}
-              className="px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer"
+              className="px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer whitespace-nowrap shrink-0"
             >
-              Cancel
+              {t('cancel')}
             </button>
             <button
               type="submit"
               form="log-shift-report-form"
               disabled={saving}
-              className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-xs font-semibold cursor-pointer"
+              className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0"
             >
-              {saving ? 'Submitting...' : 'Submit Report'}
+              {saving ? t('win_submitting') : t('submit_report')}
             </button>
           </>
         }
@@ -401,14 +410,14 @@ export function ShiftReportsScreen({
           {myLinkableShifts.length > 0 && (
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Link Scheduled Shift (Optional)
+                {t('link_scheduled_shift_optional')}
               </label>
               <select
                 value={linkedShiftId}
                 onChange={(e) => handleLinkShiftChange(e.target.value)}
                 className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-900"
               >
-                <option value="">Standalone shift report</option>
+                <option value="">{t('custom_unlinked_shift')}</option>
                 {myLinkableShifts.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.date} · {s.title} ({s.startTime}–{s.endTime})
@@ -421,7 +430,7 @@ export function ShiftReportsScreen({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Shift Title
+                {t('shift_title_label')}
               </label>
               <input
                 type="text"
@@ -434,7 +443,7 @@ export function ShiftReportsScreen({
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Department
+                {t('department_label')}
               </label>
               <input
                 type="text"
@@ -450,7 +459,7 @@ export function ShiftReportsScreen({
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Date
+                {t('date_label')}
               </label>
               <input
                 type="date"
@@ -462,7 +471,7 @@ export function ShiftReportsScreen({
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Clock In
+                {t('clock_in_hhmm')}
               </label>
               <input
                 type="time"
@@ -474,7 +483,7 @@ export function ShiftReportsScreen({
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Clock Out
+                {t('clock_out_hhmm')}
               </label>
               <input
                 type="time"
@@ -486,7 +495,7 @@ export function ShiftReportsScreen({
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Break (min)
+                {t('break_minutes_range')}
               </label>
               <input
                 type="number"
@@ -501,7 +510,7 @@ export function ShiftReportsScreen({
 
           <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-between text-xs">
             <span className="font-semibold text-emerald-900">
-              Computed Net Worked Hours
+              {t('computed_net_hours_format', formatHours(computedHours))}
             </span>
             <span className="font-mono-tabular font-bold text-emerald-700 text-sm">
               {formatHours(computedHours)}h
@@ -510,14 +519,14 @@ export function ShiftReportsScreen({
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Handoff Notes
+              {t('handoff_notes_label')}
             </label>
             <textarea
               value={handoffNotes}
               onChange={(e) => setHandoffNotes(e.target.value)}
               maxLength={600}
               rows={3}
-              placeholder="Tasks completed, equipment status, or notes for next shift..."
+              placeholder={t('win_handoff_placeholder')}
               className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm text-slate-900"
             />
           </div>

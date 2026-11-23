@@ -72,6 +72,7 @@ import {
   isTauriDesktop,
 } from '../utils/tauriBridge';
 import { checkForGitHubUpdate } from '../utils/updateChecker';
+import { translateStatic } from '../i18n/I18nContext';
 
 const WEEK_SLOTS_STORAGE_KEY = 'cadence_week_slots_v1';
 
@@ -117,7 +118,7 @@ export function useCadenceWorkspace() {
     useState<DerivedWorkspaceInsights | null>(null);
   const [streamError, setStreamError] = useState<string | null>(null);
 
-  const [appVersion, setAppVersion] = useState('1.0.0');
+  const [appVersion, setAppVersion] = useState('1.1.0');
   const [updateResult, setUpdateResult] = useState<UpdateCheckResult | null>(
     null,
   );
@@ -391,7 +392,7 @@ export function useCadenceWorkspace() {
         } catch {
           // Storage unavailable
         }
-        showFeedback('Updated weekly shift slot templates.');
+        showFeedback(translateStatic('vm_banner_slots_updated'));
       } catch (err) {
         showFeedback(unwrapFirestoreErrorMessage(err));
       }
@@ -446,7 +447,7 @@ export function useCadenceWorkspace() {
           weeklyHoursTarget,
           pushNotificationsEnabled,
         );
-        showFeedback('Profile & notification settings saved.');
+        showFeedback(translateStatic('vm_banner_prefs_saved'));
       },
       createShift: async (params: {
         title: string;
@@ -474,7 +475,7 @@ export function useCadenceWorkspace() {
           params.fairnessNote,
           activeProfile.uid,
         );
-        showFeedback(`Created shift "${params.title}".`);
+        showFeedback(translateStatic('vm_banner_shift_scheduled', params.title));
       },
       updateShift: async (params: {
         shiftId: string;
@@ -500,11 +501,11 @@ export function useCadenceWorkspace() {
           params.status,
           params.fairnessNote,
         );
-        showFeedback(`Updated shift "${params.title}".`);
+        showFeedback(translateStatic('vm_banner_shift_updated', params.title));
       },
       deleteShift: async (shiftId: string) => {
         await deleteShift(shiftId);
-        showFeedback('Shift removed from team calendar.');
+        showFeedback(translateStatic('vm_banner_shift_removed'));
       },
       submitScheduleChange: async (params: {
         shift: Shift;
@@ -530,7 +531,7 @@ export function useCadenceWorkspace() {
           params.reason,
           activeProfile.role === UserRole.MANAGER,
         );
-        showFeedback('Schedule change request submitted.');
+        showFeedback(translateStatic('vm_banner_change_submitted'));
       },
       decideScheduleChange: async (
         req: ScheduleChangeRequest,
@@ -661,9 +662,7 @@ export function useCadenceWorkspace() {
           params.shiftTitle,
           params.notes,
         );
-        showFeedback(
-          `Submitted ${count} shift availability record${count === 1 ? '' : 's'}.`,
-        );
+        showFeedback(translateStatic('vm_banner_availability_submitted', count));
       },
       withdrawSubmission: withdrawShiftSubmission,
       createTimeOffRequest: async (

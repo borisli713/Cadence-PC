@@ -4,6 +4,7 @@ import {
   invokeCheckGitHubUpdate,
   isTauriDesktop,
 } from './tauriBridge';
+import { translateStatic } from '../i18n/I18nContext';
 
 const ENV_GITHUB_REPO = (
   import.meta as ImportMeta & {
@@ -88,7 +89,7 @@ export async function checkForGitHubUpdate(): Promise<UpdateCheckResult | null> 
         currentVersion,
         latest: {
           versionName: currentVersion,
-          releaseNotes: 'No newer Windows desktop release published yet.',
+          releaseNotes: translateStatic('win_release_notes_fallback'),
           downloadPageUrl: GITHUB_RELEASES_PAGE_URL,
           windowsAssetUrl: null,
           windowsAssetName: null,
