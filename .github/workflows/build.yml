@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  actions: read
   pages: write
   id-token: write
 
@@ -88,8 +89,14 @@ jobs:
           except Exception as exc:
               print(f"Release lookup warning (starting at 1.0.0): {exc}")
 
-          if not win_versions or max(win_versions) < (1, 0, 0):
-              next_ver = "1.0.0"
+          with open("package.json", "r", encoding="utf-8") as f:
+              pkg = json.load(f)
+
+          floor_match = re.match(r"^(\d+)\.(\d+)\.(\d+)$", str(pkg.get("version", "1.0.0")).strip())
+          floor_ver = tuple(int(x) for x in floor_match.groups()) if floor_match else (1, 0, 0)
+
+          if not win_versions or max(win_versions) < floor_ver:
+              next_ver = ".".join(str(x) for x in floor_ver)
           else:
               major, minor, patch = max(win_versions)
               next_ver = f"{major}.{minor}.{patch + 1}"
@@ -97,8 +104,6 @@ jobs:
           tag_name = f"windows-v{next_ver}"
 
           # Patch package.json
-          with open("package.json", "r", encoding="utf-8") as f:
-              pkg = json.load(f)
           pkg["version"] = next_ver
           with open("package.json", "w", encoding="utf-8") as f:
               json.dump(pkg, f, indent=2)
@@ -291,12 +296,14 @@ jobs:
             release_notes.md
           retention-days: 1
 
-  deploy-pages:
+  stage-pages:
     needs: build-and-release
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      contents: read
+      actions: read
+      pages: write
+      id-token: write
 
     steps:
       - name: Checkout repository
@@ -496,12 +503,79 @@ jobs:
         with:
           enablement: true
 
+      - name: Verify staged Pages directory
+        run: |
+          du -sh _site
+          ls -la _site
+
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
+          name: github-pages
           path: _site
+          retention-days: 1
+          include-hidden-files: true
+
+  deploy-pages:
+    needs: stage-pages
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Wait for GitHub Pages artifact metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO_FULL: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import time
+          import urllib.request
+
+          repo = os.environ["REPO_FULL"]
+          run_id = os.environ["RUN_ID"]
+          token = os.environ["GH_TOKEN"]
+          url = f"https://api.github.com/repos/{repo}/actions/runs/{run_id}/artifacts?name=github-pages"
+
+          for attempt in range(1, 16):
+              req = urllib.request.Request(
+                  url,
+                  headers={
+                      "Accept": "application/vnd.github+json",
+                      "Authorization": f"Bearer {token}",
+                      "User-Agent": "cadence-pages-verifier",
+                  },
+              )
+              try:
+                  with urllib.request.urlopen(req, timeout=15) as resp:
+                      payload = json.loads(resp.read().decode("utf-8"))
+                  artifacts = [
+                      a for a in (payload.get("artifacts") or [])
+                      if a.get("name") == "github-pages" and not a.get("expired")
+                  ]
+                  if artifacts:
+                      print(f"Verified github-pages artifact id={artifacts[0].get('id')} size={artifacts[0].get('size_in_bytes')} on attempt {attempt}")
+                      raise SystemExit(0)
+              except SystemExit:
+                  raise
+              except Exception as exc:
+                  print(f"Artifact metadata check attempt {attempt} warning: {exc}")
+              time.sleep(2)
+
+          raise SystemExit("Timed out waiting for github-pages artifact metadata to become visible via GitHub API.")
+          PY
 
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          artifact_name: github-pages
 
